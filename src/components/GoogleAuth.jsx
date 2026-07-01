@@ -15,15 +15,7 @@ export default function GoogleAuth() {
   const { driveStatus, driveUser, signInWithGoogle, signOutFromGoogle } = useApp();
 
   if (driveStatus === 'not-configured') {
-    return (
-      <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
-        <AlertCircle size={15} className="text-amber-500 mt-0.5 shrink-0" />
-        <div>
-          <p className="text-xs font-semibold text-amber-700">Google Drive not configured</p>
-          <p className="text-xs text-amber-600 mt-0.5">Add <code className="bg-amber-100 px-1 rounded">VITE_GOOGLE_CLIENT_ID</code> to Netlify environment variables and redeploy.</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   if (driveStatus === 'loading') {
