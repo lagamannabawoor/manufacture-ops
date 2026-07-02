@@ -4,7 +4,7 @@ import {
   isSignedIn, loadFromDrive, saveToDrive, getUserInfo,
 } from '../services/googleDrive';
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const STORAGE_KEY = 'mfg_ops_data';
 
@@ -81,16 +81,28 @@ export function AppProvider({ children }) {
   const [driveStatus, setDriveStatus] = useState('idle');
   const [driveUser, setDriveUser] = useState(null);
   const [driveReady, setDriveReady] = useState(false);
+  const [clientId, setClientId] = useState(
+    () => ENV_CLIENT_ID || localStorage.getItem('mfg_google_client_id') || ''
+  );
   const saveTimer = useRef(null);
   const skipDriveRef = useRef(true);
 
-  // Init Google APIs on mount
+  // Init Google APIs whenever clientId changes
   useEffect(() => {
-    if (!CLIENT_ID) { setDriveStatus('not-configured'); return; }
-    initGoogleAPIs(CLIENT_ID)
+    if (!clientId) { setDriveStatus('not-configured'); setDriveReady(false); return; }
+    setDriveReady(false);
+    setDriveStatus('idle');
+    initGoogleAPIs(clientId)
       .then(() => setDriveReady(true))
       .catch(() => setDriveStatus('error'));
-  }, []);
+  }, [clientId]);
+
+  function saveClientId(id) {
+    const trimmed = id.trim();
+    localStorage.setItem('mfg_google_client_id', trimmed);
+    setClientId(trimmed);
+    setDriveUser(null);
+  }
 
   // Save to localStorage always; debounce-save to Drive when signed in
   useEffect(() => {
@@ -170,6 +182,8 @@ export function AppProvider({ children }) {
     driveStatus,
     driveUser,
     driveReady,
+    clientId,
+    saveClientId,
     signInWithGoogle,
     signOutFromGoogle,
     addItem,
