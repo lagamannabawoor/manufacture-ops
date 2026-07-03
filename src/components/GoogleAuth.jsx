@@ -1,6 +1,14 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Cloud, CloudOff, Loader, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
+import { Cloud, CloudOff, Loader, CheckCircle, AlertCircle, LogOut, RefreshCw } from 'lucide-react';
+
+function timeAgo(date) {
+  if (!date) return null;
+  const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (secs < 60) return 'just now';
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  return `${Math.floor(secs / 3600)}h ago`;
+}
 
 const GOOGLE_LOGO = (
   <svg viewBox="0 0 18 18" width="14" height="14">
@@ -12,7 +20,7 @@ const GOOGLE_LOGO = (
 );
 
 export default function GoogleAuth() {
-  const { driveStatus, driveUser, signInWithGoogle, signOutFromGoogle } = useApp();
+  const { driveStatus, driveUser, signInWithGoogle, signOutFromGoogle, syncNow, lastSyncedAt } = useApp();
 
   if (driveStatus === 'not-configured') {
     return null;
@@ -47,34 +55,38 @@ export default function GoogleAuth() {
     );
   }
 
-  const icon = {
-    synced: <CheckCircle size={15} className="text-green-500 shrink-0" />,
-    syncing: <Loader size={15} className="text-blue-500 animate-spin shrink-0" />,
-    error: <AlertCircle size={15} className="text-red-400 shrink-0" />,
-  }[driveStatus] || <Cloud size={15} className="text-green-400 shrink-0" />;
-
-  const label = {
-    synced: 'Synced to Google Drive',
-    syncing: 'Saving to Google Drive…',
-    error: 'Sync error — changes saved locally',
-  }[driveStatus] || 'Google Drive';
+  const isSyncing = driveStatus === 'syncing';
 
   return (
-    <div className="mx-4 mt-3 bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between gap-3">
+    <div className="mx-4 mt-3 bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        {icon}
+        {isSyncing
+          ? <Loader size={15} className="text-blue-500 animate-spin shrink-0" />
+          : driveStatus === 'error'
+            ? <AlertCircle size={15} className="text-red-400 shrink-0" />
+            : <CheckCircle size={15} className="text-green-500 shrink-0" />}
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-green-700 truncate">{label}</p>
-          <p className="text-xs text-green-600 truncate">{driveUser.email}</p>
+          <p className="text-xs font-semibold text-green-700 truncate">
+            {isSyncing ? 'Saving…' : driveStatus === 'error' ? 'Sync error' : 'Google Drive'}
+          </p>
+          <p className="text-xs text-green-600 truncate">
+            {lastSyncedAt ? `Synced ${timeAgo(lastSyncedAt)}` : driveUser.email}
+          </p>
         </div>
       </div>
-      <button
-        onClick={signOutFromGoogle}
-        className="text-slate-400 hover:text-slate-600 p-1 shrink-0"
-        title="Sign out"
-      >
-        <LogOut size={16} />
-      </button>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          onClick={syncNow}
+          disabled={isSyncing}
+          className="text-green-600 hover:text-green-800 p-1.5 rounded-lg hover:bg-green-100 active:scale-95 transition-transform"
+          title="Sync now"
+        >
+          <RefreshCw size={15} className={isSyncing ? 'animate-spin' : ''} />
+        </button>
+        <button onClick={signOutFromGoogle} className="text-slate-400 hover:text-slate-600 p-1.5" title="Sign out">
+          <LogOut size={15} />
+        </button>
+      </div>
     </div>
   );
 }

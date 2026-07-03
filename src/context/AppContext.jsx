@@ -81,6 +81,7 @@ export function AppProvider({ children }) {
   const [driveStatus, setDriveStatus] = useState('idle');
   const [driveUser, setDriveUser] = useState(null);
   const [driveReady, setDriveReady] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const [clientId, setClientId] = useState(
     () => ENV_CLIENT_ID || localStorage.getItem('mfg_google_client_id') || ''
   );
@@ -126,31 +127,55 @@ export function AppProvider({ children }) {
     }, 2500);
   }, [data, driveReady]);
 
-  // Poll Drive every 20s for changes made by other devices
+  // Core sync check — pull from Drive if remote is newer
+  async function checkAndPull() {
+    if (!isSignedIn()) return;
+    try {
+      const remoteTime = await getFileModifiedTime();
+      if (!remoteTime) return;
+      if (lastModifiedRef.current && remoteTime !== lastModifiedRef.current) {
+        const remoteData = await loadFromDrive();
+        if (remoteData) {
+          lastModifiedRef.current = remoteTime;
+          skipDriveRef.current = true;
+          setData(prev => ({ ...SEED, ...remoteData }));
+          setLastSyncedAt(new Date());
+          setDriveStatus('synced');
+        }
+      } else if (!lastModifiedRef.current) {
+        lastModifiedRef.current = remoteTime;
+      }
+    } catch {}
+  }
+
+  // Manual sync trigger
+  async function syncNow() {
+    if (!isSignedIn()) return;
+    setDriveStatus('syncing');
+    try {
+      const remoteData = await loadFromDrive();
+      if (remoteData) {
+        skipDriveRef.current = true;
+        setData(prev => ({ ...SEED, ...remoteData }));
+        setLastSyncedAt(new Date());
+      }
+      setDriveStatus('synced');
+    } catch { setDriveStatus('error'); }
+  }
+
+  // Poll every 20s + sync on page focus
   useEffect(() => {
     if (!driveReady || !driveUser) {
       if (pollRef.current) clearInterval(pollRef.current);
       return;
     }
-    pollRef.current = setInterval(async () => {
-      if (!isSignedIn()) return;
-      try {
-        const remoteTime = await getFileModifiedTime();
-        if (!remoteTime) return;
-        if (lastModifiedRef.current && remoteTime !== lastModifiedRef.current) {
-          const remoteData = await loadFromDrive();
-          if (remoteData) {
-            lastModifiedRef.current = remoteTime;
-            skipDriveRef.current = true;
-            setData(prev => ({ ...prev, ...remoteData }));
-            setDriveStatus('synced');
-          }
-        } else if (!lastModifiedRef.current) {
-          lastModifiedRef.current = remoteTime;
-        }
-      } catch {}
-    }, 20000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    pollRef.current = setInterval(checkAndPull, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') checkAndPull(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [driveReady, driveUser]);
 
   async function signInWithGoogle() {
@@ -214,6 +239,8 @@ export function AppProvider({ children }) {
     driveReady,
     clientId,
     saveClientId,
+    syncNow,
+    lastSyncedAt,
     signInWithGoogle,
     signOutFromGoogle,
     addItem,
