@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink } from 'lucide-react';
+import AuditLog from './AuditLog';
+import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus } from 'lucide-react';
 
 export default function Settings() {
+  const { currentUser, logout } = useApp();
+  const isAdmin = currentUser?.role === 'admin';
   const [section, setSection] = useState(null);
   const [showDrive, setShowDrive] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
   const sections = [
     { id: 'factories', label: 'Factories', icon: Building2, color: 'text-blue-500 bg-blue-50' },
     { id: 'productCategories', label: 'Product Categories', icon: Layers, color: 'text-indigo-500 bg-indigo-50' },
@@ -38,9 +43,34 @@ export default function Settings() {
           ))}
         </div>
         <GoogleDriveSection />
+        {isAdmin && (
+          <>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+              <button onClick={() => setShowUsers(true)} className="w-full flex items-center justify-between px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-violet-500 bg-violet-50"><UserPlus size={18} /></div>
+                  <span className="text-sm font-medium text-gray-700">User Management</span>
+                </div>
+                <ChevronRight size={16} className="text-gray-300" />
+              </button>
+              <button onClick={() => setShowAudit(true)} className="w-full flex items-center justify-between px-4 py-4 border-t border-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-rose-500 bg-rose-50"><Shield size={18} /></div>
+                  <span className="text-sm font-medium text-gray-700">Audit Log</span>
+                </div>
+                <ChevronRight size={16} className="text-gray-300" />
+              </button>
+            </div>
+          </>
+        )}
         <ResetSection />
+        <button onClick={logout} className="w-full flex items-center justify-center gap-2 mt-4 py-3 bg-white border border-red-200 text-red-600 font-semibold rounded-xl text-sm shadow-sm">
+          <LogOut size={16} /> Sign Out ({currentUser?.name})
+        </button>
       </div>
       {showDrive && <DriveClientPanel onClose={() => setShowDrive(false)} />}
+      {showUsers && <UserManagementPanel onClose={() => setShowUsers(false)} />}
+      {showAudit && <AuditLog onBack={() => setShowAudit(false)} />}
       {section && (
         <SectionEditor
           sectionId={section}
@@ -301,6 +331,66 @@ function DriveClientPanel({ onClose }) {
           </ol>
         </div>
       </div>
+    </div>
+  );
+}
+
+function UserManagementPanel({ onClose }) {
+  const { users = [], addItem, deleteItem, currentUser } = useApp();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: '', username: '', password: '', role: 'accountant' });
+
+  function save() {
+    if (!form.name || !form.username || !form.password) return alert('All fields are required.');
+    if (users.find(u => u.username.toLowerCase() === form.username.toLowerCase())) return alert('Username already exists.');
+    addItem('users', form);
+    setForm({ name: '', username: '', password: '', role: 'accountant' });
+    setShowAdd(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+      <Header title="User Management" onBack={onClose} action={
+        <button onClick={() => setShowAdd(true)} className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"><Plus size={20} /></button>
+      } />
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {users.map(u => (
+          <div key={u.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">{u.name}</p>
+              <p className="text-xs text-gray-400">@{u.username}</p>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block capitalize ${
+                u.role === 'admin' ? 'bg-red-100 text-red-700' :
+                u.role === 'accountant' ? 'bg-blue-100 text-blue-700' :
+                u.role === 'labour' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+              }`}>{ROLES[u.role]?.label || u.role}</span>
+            </div>
+            {u.id !== currentUser?.id && (
+              <button onClick={() => { if (confirm(`Delete user "${u.name}"?`)) deleteItem('users', u.id); }}
+                className="text-gray-300 hover:text-red-400 p-1"><Trash2 size={16} /></button>
+            )}
+          </div>
+        ))}
+      </div>
+      {showAdd && (
+        <Modal title="Add User" onClose={() => setShowAdd(false)}>
+          <Field label="Full Name" required>
+            <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="John Smith" />
+          </Field>
+          <Field label="Username" required>
+            <input className={inputCls} value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="johnsmith" autoCapitalize="none" />
+          </Field>
+          <Field label="Password" required>
+            <input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 4 characters" />
+          </Field>
+          <Field label="Role" required>
+            <select className={selectCls} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              {Object.entries(ROLES).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
+            </select>
+          </Field>
+          <SaveBtn onClick={save} label="Create User" />
+        </Modal>
+      )}
     </div>
   );
 }

@@ -1,41 +1,39 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Factory, Filter } from 'lucide-react';
+import { Plus, Trash2, Factory, Filter, CheckCircle, XCircle, Clock, Send } from 'lucide-react';
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+function today() { return new Date().toISOString().slice(0, 10); }
+function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
-function fmt(n) {
-  return new Intl.NumberFormat('en-IN').format(n || 0);
-}
-
-const emptyForm = {
-  date: today(),
-  productId: '',
-  factoryId: '',
-  quantity: '',
-  cementBags: '',
-  notes: '',
-};
+const emptyForm = { date: today(), productId: '', factoryId: '', quantity: '', cementBags: '', notes: '' };
 
 export default function Production() {
   const app = useApp();
+  const role = app.currentUser?.role;
+  const perms = ROLES[role] || {};
+  const isLabour = role === 'labour';
+  const canApprove = perms.canApprove;
+  const canWrite = perms.canWrite;
+
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [filterDate, setFilterDate] = useState(today());
   const [filterCat, setFilterCat] = useState('');
   const [filterFactory, setFilterFactory] = useState('');
 
-  function set(k, v) {
-    setForm(f => ({ ...f, [k]: v }));
-  }
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
   function save() {
     if (!form.productId || !form.quantity) return alert('Product and quantity are required.');
-    app.addItem('productionEntries', form);
+    if (isLabour) {
+      const prod = app.products.find(p => p.id === form.productId);
+      app.submitPendingProduction({ ...form, qty: form.quantity, unit: prod?.unit || 'units' });
+      alert('Submitted for approval!');
+    } else {
+      app.addItem('productionEntries', form);
+    }
     setForm({ ...emptyForm, date: form.date });
     setShowModal(false);
   }
@@ -53,22 +51,137 @@ export default function Production() {
   const totalUnits = filtered.reduce((s, e) => s + Number(e.quantity || 0), 0);
   const totalCement = filtered.reduce((s, e) => s + Number(e.cementBags || 0), 0);
 
+  const pendingMine = (app.pendingProduction || []).filter(p => p.submittedBy === app.currentUser?.id);
+  const pendingAll = app.pendingProduction || [];
+
+  if (isLabour) {
+    return (
+      <div>
+        <Header
+          title="Production"
+          subtitle={`My submissions — ${today()}`}
+          action={
+            <button onClick={() => { setForm({ ...emptyForm, date: today() }); setShowModal(true); }}
+              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2">
+              <Plus size={20} />
+            </button>
+          }
+        />
+        <div className="px-4 py-4 space-y-3">
+          {pendingMine.length === 0 && (
+            <div className="bg-white rounded-xl p-8 text-center shadow-sm border border-gray-100">
+              <Send size={36} className="text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm font-medium">No pending submissions</p>
+              <p className="text-gray-400 text-xs mt-1">Tap + to submit today's production</p>
+            </div>
+          )}
+          {pendingMine.map(p => {
+            const product = app.products.find(pr => pr.id === p.productId);
+            return (
+              <div key={p.id} className="bg-white rounded-xl shadow-sm border border-amber-100 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock size={14} className="text-amber-500" />
+                  <span className="text-xs font-semibold text-amber-600">Pending Approval</span>
+                </div>
+                <p className="font-semibold text-gray-800">{product?.name || 'Unknown'}</p>
+                <p className="text-xs text-gray-400">{p.date} · {p.quantity} units · {p.cementBags || 0} bags</p>
+                {p.notes && <p className="text-xs text-gray-500 mt-1 italic">{p.notes}</p>}
+              </div>
+            );
+          })}
+        </div>
+        {showModal && (
+          <Modal title="Submit Production Entry" onClose={() => setShowModal(false)}>
+            <Field label="Date" required>
+              <input type="date" className={inputCls} value={form.date} onChange={e => set('date', e.target.value)} />
+            </Field>
+            <Field label="Product" required>
+              <select className={selectCls} value={form.productId} onChange={e => set('productId', e.target.value)}>
+                <option value="">Select product...</option>
+                {app.productCategories.map(cat => (
+                  <optgroup key={cat.id} label={cat.name}>
+                    {app.products.filter(p => p.categoryId === cat.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
+            <Field label="Factory">
+              <select className={selectCls} value={form.factoryId} onChange={e => set('factoryId', e.target.value)}>
+                <option value="">Select factory...</option>
+                {app.factories.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Quantity (units)" required>
+                <input type="number" className={inputCls} placeholder="0" value={form.quantity} onChange={e => set('quantity', e.target.value)} min="0" />
+              </Field>
+              <Field label="Cement Bags">
+                <input type="number" className={inputCls} placeholder="0" value={form.cementBags} onChange={e => set('cementBags', e.target.value)} min="0" />
+              </Field>
+            </div>
+            <Field label="Notes">
+              <textarea className={inputCls} rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Optional notes..." />
+            </Field>
+            <SaveBtn onClick={save} label="Submit for Approval" />
+          </Modal>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <Header
         title="Production"
         subtitle="Daily manufacturing records"
         action={
-          <button
-            onClick={() => { setForm(emptyForm); setShowModal(true); }}
-            className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
-          >
-            <Plus size={20} />
-          </button>
+          (canWrite || canApprove) && (
+            <button
+              onClick={() => { setForm(emptyForm); setShowModal(true); }}
+              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
+            >
+              <Plus size={20} />
+            </button>
+          )
         }
       />
 
       <div className="px-4 py-4">
+        {canApprove && pendingAll.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <p className="text-xs font-bold text-amber-700 mb-3 flex items-center gap-1.5">
+              <Clock size={14} /> Pending Approvals ({pendingAll.length})
+            </p>
+            <div className="space-y-2">
+              {pendingAll.map(p => {
+                const product = app.products.find(pr => pr.id === p.productId);
+                const factory = app.factories.find(f => f.id === p.factoryId);
+                return (
+                  <div key={p.id} className="bg-white rounded-xl p-3 border border-amber-100">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-700">{product?.name || 'Unknown'}</p>
+                        <p className="text-xs text-gray-400">{p.date} · {fmt(p.quantity)} units · {p.cementBags || 0} bags cement</p>
+                        <p className="text-xs text-amber-600 mt-0.5">By: {p.submittedByName} · {factory?.name || ''}</p>
+                        {p.notes && <p className="text-xs text-gray-500 italic mt-0.5">{p.notes}</p>}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => app.approvePendingProduction(p.id)}
+                          className="text-green-600 hover:text-green-800 p-1.5 bg-green-50 rounded-lg" title="Approve">
+                          <CheckCircle size={18} />
+                        </button>
+                        <button onClick={() => { if (confirm('Reject this entry?')) app.rejectPendingProduction(p.id); }}
+                          className="text-red-400 hover:text-red-600 p-1.5 bg-red-50 rounded-lg" title="Reject">
+                          <XCircle size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Filter size={14} className="text-gray-400" />
@@ -143,14 +256,16 @@ export default function Production() {
                       <p className="text-sm font-semibold text-orange-600 mt-1">{entry.cementBags} bags</p>
                     </div>
                   </div>
-                  <div className="flex justify-end mt-2">
-                    <button
-                      onClick={() => { if (confirm('Delete this entry?')) app.deleteItem('productionEntries', entry.id); }}
-                      className="text-red-400 hover:text-red-600 p-1"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  {canWrite && (
+                    <div className="flex justify-end mt-2">
+                      <button
+                        onClick={() => { if (confirm('Delete this entry?')) app.deleteItem('productionEntries', entry.id); }}
+                        className="text-red-400 hover:text-red-600 p-1"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

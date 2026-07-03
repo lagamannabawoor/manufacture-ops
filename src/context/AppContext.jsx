@@ -8,7 +8,20 @@ const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const STORAGE_KEY = 'mfg_ops_data';
 
+export const ROLES = {
+  admin:      { label: 'Admin',      tabs: ['dashboard','production','materials','finance','reports','settings'], canWrite: true,  canApprove: true,  canSettings: true  },
+  accountant: { label: 'Accountant', tabs: ['dashboard','production','materials','finance','reports'],            canWrite: true,  canApprove: true,  canSettings: false },
+  labour:     { label: 'Labour',     tabs: ['production'],                                                       canWrite: false, canApprove: false, canSettings: false },
+  guest:      { label: 'Guest',      tabs: ['dashboard','production','materials','finance','reports'],            canWrite: false, canApprove: false, canSettings: false },
+};
+
 const SEED = {
+  users: [
+    { id: 'u_admin',      name: 'Admin',      username: 'admin',      password: 'admin123',      role: 'admin'      },
+    { id: 'u_accountant', name: 'Accountant', username: 'accountant', password: 'accountant123', role: 'accountant' },
+    { id: 'u_labour',     name: 'Labour',     username: 'labour',     password: 'labour123',     role: 'labour'     },
+    { id: 'u_guest',      name: 'Guest',      username: 'guest',      password: 'guest123',      role: 'guest'      },
+  ],
   factories: [
     { id: 'f1', name: 'Factory 1' },
     { id: 'f2', name: 'Factory 2' },
@@ -61,6 +74,8 @@ const SEED = {
   orders: [],
   orderPayments: [],
   expenses: [],
+  pendingProduction: [],
+  auditLog: [],
 };
 
 function loadData() {
@@ -78,6 +93,12 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [data, setData] = useState(loadData);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('mfg_session')); } catch { return null; }
+  });
+  const currentUserRef = useRef(null);
+  currentUserRef.current = currentUser;
+
   const [driveStatus, setDriveStatus] = useState('idle');
   const [driveUser, setDriveUser] = useState(null);
   const [driveReady, setDriveReady] = useState(false);
@@ -89,6 +110,61 @@ export function AppProvider({ children }) {
   const skipDriveRef = useRef(true);
   const lastModifiedRef = useRef(null);
   const pollRef = useRef(null);
+
+  function _log(category, description, user) {
+    const u = user || currentUserRef.current;
+    if (!u) return;
+    const entry = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      userId: u.id, userName: u.name, role: u.role,
+      category, description,
+    };
+    setData(prev => ({ ...prev, auditLog: [entry, ...(prev.auditLog || [])].slice(0, 5000) }));
+  }
+
+  function login(username, password) {
+    const users = data.users || [];
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+    if (!user) return false;
+    const session = { id: user.id, name: user.name, role: user.role, username: user.username };
+    sessionStorage.setItem('mfg_session', JSON.stringify(session));
+    setCurrentUser(session);
+    _log('auth', `${user.name} logged in`, session);
+    return true;
+  }
+
+  function logout() {
+    _log('auth', `${currentUser?.name} logged out`);
+    sessionStorage.removeItem('mfg_session');
+    setCurrentUser(null);
+  }
+
+  function submitPendingProduction(entry) {
+    const u = currentUserRef.current;
+    const item = { ...entry, id: uid(), status: 'pending', submittedBy: u?.id, submittedByName: u?.name, submittedAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, pendingProduction: [...(prev.pendingProduction || []), item] }));
+    _log('production', `${u?.name} submitted production for approval: ${entry.qty} ${entry.unit || 'units'}`);
+  }
+
+  function approvePendingProduction(pendingId) {
+    setData(prev => {
+      const entry = prev.pendingProduction.find(p => p.id === pendingId);
+      if (!entry) return prev;
+      const { status, submittedBy, submittedByName, submittedAt, ...rest } = entry;
+      const approved = { ...rest, approvedBy: currentUserRef.current?.id, approvedByName: currentUserRef.current?.name, approvedAt: new Date().toISOString() };
+      _log('production', `Approved production entry from ${submittedByName}: ${entry.qty} units`);
+      return { ...prev, productionEntries: [...prev.productionEntries, approved], pendingProduction: prev.pendingProduction.filter(p => p.id !== pendingId) };
+    });
+  }
+
+  function rejectPendingProduction(pendingId) {
+    setData(prev => {
+      const entry = prev.pendingProduction.find(p => p.id === pendingId);
+      _log('production', `Rejected production entry from ${entry?.submittedByName}`);
+      return { ...prev, pendingProduction: prev.pendingProduction.filter(p => p.id !== pendingId) };
+    });
+  }
 
   // Init Google APIs whenever clientId changes
   useEffect(() => {
@@ -210,18 +286,20 @@ export function AppProvider({ children }) {
   }
 
   function addItem(key, item) {
-    setData(prev => ({ ...prev, [key]: [...prev[key], { id: uid(), ...item }] }));
+    const newItem = { id: uid(), ...item };
+    setData(prev => ({ ...prev, [key]: [...(prev[key] || []), newItem] }));
+    _log(key, `Added ${key} entry: ${item.name || item.description || item.qty || ''}`);
+    return newItem;
   }
 
   function updateItem(key, id, updates) {
-    setData(prev => ({
-      ...prev,
-      [key]: prev[key].map(item => (item.id === id ? { ...item, ...updates } : item)),
-    }));
+    setData(prev => ({ ...prev, [key]: (prev[key] || []).map(i => i.id === id ? { ...i, ...updates } : i) }));
+    _log(key, `Updated ${key} entry`);
   }
 
   function deleteItem(key, id) {
-    setData(prev => ({ ...prev, [key]: prev[key].filter(item => item.id !== id) }));
+    setData(prev => ({ ...prev, [key]: (prev[key] || []).filter(i => i.id !== id) }));
+    _log(key, `Deleted ${key} entry`);
   }
 
   function setList(key, list) {
@@ -234,6 +312,12 @@ export function AppProvider({ children }) {
 
   const ctx = {
     ...data,
+    currentUser,
+    login,
+    logout,
+    submitPendingProduction,
+    approvePendingProduction,
+    rejectPendingProduction,
     driveStatus,
     driveUser,
     driveReady,
