@@ -38,8 +38,15 @@ export async function initGoogleAPIs(clientId) {
 
 export function requestSignIn(silent = false) {
   return new Promise((resolve) => {
-    tokenClient.callback = (resp) => resolve(resp.error ? null : resp);
-    tokenClient.requestAccessToken({ prompt: silent ? '' : 'consent' });
+    tokenClient.callback = (resp) => {
+      if (resp.error && !silent) {
+        tokenClient.callback = (resp2) => resolve(resp2.error ? null : resp2);
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+      } else {
+        resolve(resp.error ? null : resp);
+      }
+    };
+    tokenClient.requestAccessToken({ prompt: silent ? '' : 'select_account' });
   });
 }
 
