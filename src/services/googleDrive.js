@@ -75,6 +75,14 @@ export async function getUserInfo() {
   } catch { return null; }
 }
 
+export async function getFileModifiedTime() {
+  if (!fileId) return null;
+  try {
+    const res = await window.gapi.client.drive.files.get({ fileId, fields: 'modifiedTime' });
+    return res.result.modifiedTime;
+  } catch { return null; }
+}
+
 export async function loadFromDrive() {
   if (fileId) {
     try {
@@ -109,6 +117,7 @@ export async function saveToDrive(data) {
   );
   form.append('file', new Blob([body], { type: 'application/json' }));
 
+  let savedFileId = fileId;
   if (fileId) {
     await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
       method: 'PATCH',
@@ -122,7 +131,12 @@ export async function saveToDrive(data) {
       body: form,
     });
     const json = await res.json();
-    fileId = json.id;
+    savedFileId = json.id;
+    fileId = savedFileId;
     localStorage.setItem('mfg_drive_file_id', fileId);
   }
+  try {
+    const meta = await window.gapi.client.drive.files.get({ fileId: savedFileId, fields: 'modifiedTime' });
+    return meta.result.modifiedTime;
+  } catch { return null; }
 }

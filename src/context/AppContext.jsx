@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   initGoogleAPIs, requestSignIn, signOutDrive,
-  isSignedIn, loadFromDrive, saveToDrive, getUserInfo,
+  isSignedIn, loadFromDrive, saveToDrive, getUserInfo, getFileModifiedTime,
 } from '../services/googleDrive';
 
 const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -86,6 +86,8 @@ export function AppProvider({ children }) {
   );
   const saveTimer = useRef(null);
   const skipDriveRef = useRef(true);
+  const lastModifiedRef = useRef(null);
+  const pollRef = useRef(null);
 
   // Init Google APIs whenever clientId changes
   useEffect(() => {
@@ -115,13 +117,41 @@ export function AppProvider({ children }) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        await saveToDrive(data);
+        const modifiedTime = await saveToDrive(data);
+        if (modifiedTime) lastModifiedRef.current = modifiedTime;
         setDriveStatus('synced');
       } catch {
         setDriveStatus('error');
       }
     }, 2500);
   }, [data, driveReady]);
+
+  // Poll Drive every 20s for changes made by other devices
+  useEffect(() => {
+    if (!driveReady || !driveUser) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
+    }
+    pollRef.current = setInterval(async () => {
+      if (!isSignedIn()) return;
+      try {
+        const remoteTime = await getFileModifiedTime();
+        if (!remoteTime) return;
+        if (lastModifiedRef.current && remoteTime !== lastModifiedRef.current) {
+          const remoteData = await loadFromDrive();
+          if (remoteData) {
+            lastModifiedRef.current = remoteTime;
+            skipDriveRef.current = true;
+            setData(prev => ({ ...prev, ...remoteData }));
+            setDriveStatus('synced');
+          }
+        } else if (!lastModifiedRef.current) {
+          lastModifiedRef.current = remoteTime;
+        }
+      } catch {}
+    }, 20000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [driveReady, driveUser]);
 
   async function signInWithGoogle() {
     setDriveStatus('loading');
