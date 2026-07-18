@@ -22,14 +22,14 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-blue-700 to-blue-900 flex flex-col items-center justify-center px-6">
+    <div className="min-h-dvh bg-gradient-to-br from-amber-800 to-amber-950 flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
             <Factory size={34} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">ManufactureOps</h1>
-          <p className="text-blue-200 text-sm mt-1">Daily Operations Management</p>
+          <h1 className="text-2xl font-bold text-white tracking-wide">Urbanmud</h1>
+          <p className="text-amber-300 text-sm mt-1">Manufacturing Operations</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
@@ -48,7 +48,7 @@ export default function Login() {
               autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50"
               placeholder="Enter username"
             />
           </div>
@@ -61,7 +61,7 @@ export default function Login() {
                 autoComplete="current-password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50"
                 placeholder="Enter password"
               />
               <button type="button" onClick={() => setShowPw(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -73,7 +73,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-3 rounded-xl text-sm active:scale-98 transition-transform disabled:opacity-60 mt-2"
+            className="w-full flex items-center justify-center gap-2 bg-amber-700 text-white font-semibold py-3 rounded-xl text-sm active:scale-98 transition-transform disabled:opacity-60 mt-2"
           >
             <LogIn size={17} />
             {loading ? 'Signing in…' : 'Sign In'}
@@ -81,13 +81,13 @@ export default function Login() {
         </form>
 
         <div className="mt-5 bg-white/10 rounded-xl p-4">
-          <p className="text-xs text-blue-200 font-semibold mb-2">Default credentials</p>
+          <p className="text-xs text-amber-300 font-semibold mb-2">Default credentials</p>
           {Object.entries(ROLES).map(([role, info]) => (
-            <p key={role} className="text-xs text-blue-100">
+            <p key={role} className="text-xs text-amber-100">
               <span className="font-semibold">{info.label}:</span> username = <span className="font-mono bg-white/10 px-1 rounded">{role}</span> / password = <span className="font-mono bg-white/10 px-1 rounded">{role}123</span>
             </p>
           ))}
-          <p className="text-xs text-blue-300 mt-2">Create more users in Settings after logging in as Admin.</p>
+          <p className="text-xs text-amber-300 mt-2">Create more users in Settings after logging in as Admin.</p>
         </div>
       </div>
     </div>

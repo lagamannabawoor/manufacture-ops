@@ -1,6 +1,6 @@
 {
-  "appId": "com.lagamanna.manufactureops",
-  "appName": "ManufactureOps",
+  "appId": "com.urbanmud.app",
+  "appName": "Urbanmud",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
