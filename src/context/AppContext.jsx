@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   initGoogleAPIs, requestSignIn, signOutDrive,
-  isSignedIn, loadFromDrive, saveToDrive, getUserInfo, getFileModifiedTime,
+  isSignedIn, loadFromDrive, saveToDrive, getUserInfo, getDriveFingerprint, KEY_TO_FILE,
 } from '../services/googleDrive';
 
 const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -108,8 +108,11 @@ export function AppProvider({ children }) {
   );
   const saveTimer = useRef(null);
   const skipDriveRef = useRef(true);
-  const lastModifiedRef = useRef(null);
+  const lastFingerprintRef = useRef(null);
+  const dirtyKeysRef = useRef(new Set());
   const pollRef = useRef(null);
+
+  function markDirty(key) { dirtyKeysRef.current.add(key); }
 
   function _log(category, description, user) {
     const u = user || currentUserRef.current;
@@ -121,6 +124,7 @@ export function AppProvider({ children }) {
       category, description,
     };
     setData(prev => ({ ...prev, auditLog: [entry, ...(prev.auditLog || [])].slice(0, 5000) }));
+    markDirty('auditLog');
   }
 
   function login(username, password) {
@@ -144,6 +148,7 @@ export function AppProvider({ children }) {
     const u = currentUserRef.current;
     const item = { ...entry, id: uid(), status: 'pending', submittedBy: u?.id, submittedByName: u?.name, submittedAt: new Date().toISOString() };
     setData(prev => ({ ...prev, pendingProduction: [...(prev.pendingProduction || []), item] }));
+    markDirty('pendingProduction');
     _log('production', `${u?.name} submitted production for approval: ${entry.qty} ${entry.unit || 'units'}`);
   }
 
@@ -156,6 +161,7 @@ export function AppProvider({ children }) {
       _log('production', `Approved production entry from ${submittedByName}: ${entry.qty} units`);
       return { ...prev, productionEntries: [...prev.productionEntries, approved], pendingProduction: prev.pendingProduction.filter(p => p.id !== pendingId) };
     });
+    markDirty('productionEntries'); markDirty('pendingProduction');
   }
 
   function rejectPendingProduction(pendingId) {
@@ -164,6 +170,7 @@ export function AppProvider({ children }) {
       _log('production', `Rejected production entry from ${entry?.submittedByName}`);
       return { ...prev, pendingProduction: prev.pendingProduction.filter(p => p.id !== pendingId) };
     });
+    markDirty('pendingProduction');
   }
 
   // Init Google APIs whenever clientId changes
@@ -194,8 +201,11 @@ export function AppProvider({ children }) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        const modifiedTime = await saveToDrive(data);
-        if (modifiedTime) lastModifiedRef.current = modifiedTime;
+        const dirty = new Set(dirtyKeysRef.current);
+        dirtyKeysRef.current.clear();
+        await saveToDrive(data, dirty.size > 0 ? dirty : null);
+        const fp = await getDriveFingerprint();
+        if (fp) lastFingerprintRef.current = fp;
         setDriveStatus('synced');
       } catch {
         setDriveStatus('error');
@@ -203,23 +213,24 @@ export function AppProvider({ children }) {
     }, 2500);
   }, [data, driveReady]);
 
-  // Core sync check — pull from Drive if remote is newer
+  // Core sync check — pull from Drive if any file fingerprint changed
   async function checkAndPull() {
     if (!isSignedIn()) return;
     try {
-      const remoteTime = await getFileModifiedTime();
-      if (!remoteTime) return;
-      if (lastModifiedRef.current && remoteTime !== lastModifiedRef.current) {
+      const fp = await getDriveFingerprint();
+      if (!fp) return;
+      if (lastFingerprintRef.current && fp !== lastFingerprintRef.current) {
         const remoteData = await loadFromDrive();
         if (remoteData) {
-          lastModifiedRef.current = remoteTime;
+          lastFingerprintRef.current = fp;
           skipDriveRef.current = true;
+          dirtyKeysRef.current.clear();
           setData(prev => ({ ...SEED, ...remoteData }));
           setLastSyncedAt(new Date());
           setDriveStatus('synced');
         }
-      } else if (!lastModifiedRef.current) {
-        lastModifiedRef.current = remoteTime;
+      } else if (!lastFingerprintRef.current) {
+        lastFingerprintRef.current = fp;
       }
     } catch {}
   }
@@ -232,9 +243,12 @@ export function AppProvider({ children }) {
       const remoteData = await loadFromDrive();
       if (remoteData) {
         skipDriveRef.current = true;
+        dirtyKeysRef.current.clear();
         setData(prev => ({ ...SEED, ...remoteData }));
         setLastSyncedAt(new Date());
       }
+      const fp = await getDriveFingerprint();
+      if (fp) lastFingerprintRef.current = fp;
       setDriveStatus('synced');
     } catch { setDriveStatus('error'); }
   }
@@ -264,11 +278,14 @@ export function AppProvider({ children }) {
       setDriveStatus('loading');
       const driveData = await loadFromDrive();
       skipDriveRef.current = true;
+      dirtyKeysRef.current.clear();
       if (driveData) {
         setData({ ...SEED, ...driveData });
       } else {
-        await saveToDrive(data);
+        await saveToDrive(data, null);
       }
+      const fp = await getDriveFingerprint();
+      if (fp) lastFingerprintRef.current = fp;
       setDriveStatus('synced');
     } catch {
       setDriveStatus('error');
@@ -288,22 +305,26 @@ export function AppProvider({ children }) {
   function addItem(key, item) {
     const newItem = { id: uid(), ...item };
     setData(prev => ({ ...prev, [key]: [...(prev[key] || []), newItem] }));
+    markDirty(key);
     _log(key, `Added ${key} entry: ${item.name || item.description || item.qty || ''}`);
     return newItem;
   }
 
   function updateItem(key, id, updates) {
     setData(prev => ({ ...prev, [key]: (prev[key] || []).map(i => i.id === id ? { ...i, ...updates } : i) }));
+    markDirty(key);
     _log(key, `Updated ${key} entry`);
   }
 
   function deleteItem(key, id) {
     setData(prev => ({ ...prev, [key]: (prev[key] || []).filter(i => i.id !== id) }));
+    markDirty(key);
     _log(key, `Deleted ${key} entry`);
   }
 
   function setList(key, list) {
     setData(prev => ({ ...prev, [key]: list }));
+    markDirty(key);
   }
 
   function resetData() {
