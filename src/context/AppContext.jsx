@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   initGoogleAPIs, requestSignIn, signOutDrive,
-  isSignedIn, loadFromDrive, saveToDrive, getUserInfo, getDriveFingerprint, KEY_TO_FILE,
+  isSignedIn, loadFromDrive, saveToDrive, getUserInfo, getDriveFingerprint, KEY_TO_FILE, createDailyBackup,
 } from '../services/googleDrive';
 
 const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -287,6 +287,8 @@ export function AppProvider({ children }) {
       const fp = await getDriveFingerprint();
       if (fp) lastFingerprintRef.current = fp;
       setDriveStatus('synced');
+      // Trigger daily backup silently after sign-in
+      createDailyBackup(false).catch(() => {});
     } catch {
       setDriveStatus('error');
     }
@@ -346,6 +348,7 @@ export function AppProvider({ children }) {
     saveClientId,
     syncNow,
     lastSyncedAt,
+    createDailyBackup,
     signInWithGoogle,
     signOutFromGoogle,
     addItem,

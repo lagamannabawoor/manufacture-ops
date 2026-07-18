@@ -3,7 +3,7 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
-import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore } from 'lucide-react';
 
 export default function Settings() {
   const { currentUser, logout } = useApp();
@@ -61,6 +61,7 @@ export default function Settings() {
                 <ChevronRight size={16} className="text-gray-300" />
               </button>
             </div>
+            <BackupSection />
           </>
         )}
         <ResetSection />
@@ -330,6 +331,51 @@ function DriveClientPanel({ onClose }) {
             <li>Click Create → Copy the <strong>Client ID</strong></li>
           </ol>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function BackupSection() {
+  const { createDailyBackup, driveUser } = useApp();
+  const [status, setStatus] = useState('');
+  const lastBackup = localStorage.getItem('mfg_last_backup') || null;
+
+  async function runBackup() {
+    if (!driveUser) { setStatus('Not connected to Google Drive'); return; }
+    setStatus('backing_up');
+    const result = await createDailyBackup(true);
+    setStatus(result === 'error' ? 'error' : result === 'not_signed_in' ? 'not_signed_in' : 'done');
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+      <div className="px-4 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-teal-500 bg-teal-50">
+            <ArchiveRestore size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-700">Backup & Archive</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {lastBackup ? `Last backup: ${lastBackup}` : 'No backup yet'}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={runBackup}
+          disabled={status === 'backing_up'}
+          className="px-3 py-1.5 bg-teal-50 text-teal-700 text-xs font-semibold rounded-lg border border-teal-200 disabled:opacity-50"
+        >
+          {status === 'backing_up' ? 'Backing up…' : status === 'done' ? '✓ Done' : 'Backup Now'}
+        </button>
+      </div>
+      {status === 'error' && <p className="px-4 pb-3 text-xs text-red-500">Backup failed — ensure Drive is connected.</p>}
+      {status === 'not_signed_in' && <p className="px-4 pb-3 text-xs text-amber-600">Please connect Google Drive first.</p>}
+      <div className="px-4 pb-3 border-t border-gray-50 pt-3">
+        <p className="text-xs text-gray-400 leading-relaxed">
+          Daily backups are created automatically on sign-in and stored in <strong>ManufactureOps_Backups/</strong> on Google Drive. Backups older than 30 days are deleted automatically.
+        </p>
       </div>
     </div>
   );

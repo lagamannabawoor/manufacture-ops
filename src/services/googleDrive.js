@@ -11,13 +11,16 @@ export const FILE_MAP = {
 export const KEY_TO_FILE = {};
 Object.entries(FILE_MAP).forEach(([file, keys]) => keys.forEach(k => { KEY_TO_FILE[k] = file; }));
 
-const FOLDER_NAME  = 'ManufactureOps';
-const LEGACY_FILE  = 'manufacture_ops_data.json';
-const SCOPES       = 'https://www.googleapis.com/auth/drive.file';
-const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+const FOLDER_NAME         = 'ManufactureOps';
+const BACKUP_FOLDER_NAME  = 'ManufactureOps_Backups';
+const BACKUP_RETAIN_DAYS  = 30;
+const LEGACY_FILE         = 'manufacture_ops_data.json';
+const SCOPES              = 'https://www.googleapis.com/auth/drive.file';
+const DISCOVERY_DOC       = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
-let tokenClient = null;
-let folderId = localStorage.getItem('mfg_folder_id') || null;
+let tokenClient    = null;
+let folderId       = localStorage.getItem('mfg_folder_id')        || null;
+let backupFolderId = localStorage.getItem('mfg_backup_folder_id') || null;
 
 // Per-file ID cache (persisted in localStorage)
 const fileIds = {};
@@ -172,8 +175,9 @@ export function signOutDrive() {
   const tk = window.gapi?.client?.getToken();
   if (tk?.access_token) { window.google.accounts.oauth2.revoke(tk.access_token); window.gapi.client.setToken(''); }
   Object.keys(FILE_MAP).forEach(name => { fileIds[name] = null; localStorage.removeItem(`mfg_fid_${name}`); });
-  folderId = null;
+  folderId = null; backupFolderId = null;
   localStorage.removeItem('mfg_folder_id');
+  localStorage.removeItem('mfg_backup_folder_id');
   localStorage.removeItem('mfg_drive_file_id');
 }
 
@@ -232,6 +236,93 @@ export async function saveToDrive(data, dirtyKeys) {
     })
   );
   return times.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean).sort().pop() || null;
+}
+
+// ── Backup ───────────────────────────────────────────────────────────────────
+async function resolveBackupFolder() {
+  if (backupFolderId) {
+    try { await window.gapi.client.drive.files.get({ fileId: backupFolderId, fields: 'id' }); return backupFolderId; }
+    catch { backupFolderId = null; localStorage.removeItem('mfg_backup_folder_id'); }
+  }
+  const res = await window.gapi.client.drive.files.list({
+    q: `name='${BACKUP_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields: 'files(id)', spaces: 'drive',
+  });
+  if (res.result.files?.length > 0) {
+    backupFolderId = res.result.files[0].id;
+    localStorage.setItem('mfg_backup_folder_id', backupFolderId);
+    return backupFolderId;
+  }
+  const tk = token();
+  const cr = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tk}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: BACKUP_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  const folder = await cr.json();
+  backupFolderId = folder.id;
+  localStorage.setItem('mfg_backup_folder_id', backupFolderId);
+  return backupFolderId;
+}
+
+async function cleanupOldBackups(backupRoot) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - BACKUP_RETAIN_DAYS);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  try {
+    const res = await window.gapi.client.drive.files.list({
+      q: `'${backupRoot}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id,name)', spaces: 'drive',
+    });
+    const old = (res.result.files || []).filter(f => f.name < cutoffStr);
+    const tk = token();
+    await Promise.allSettled(old.map(f =>
+      fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tk}` } })
+    ));
+  } catch {}
+}
+
+/** Create today's backup (skips if already done today). Deletes backups older than 30 days. */
+export async function createDailyBackup(force = false) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (!force && localStorage.getItem('mfg_last_backup') === today) return 'already_done';
+  const tk = token();
+  if (!tk) return 'not_signed_in';
+  try {
+    const backupRoot = await resolveBackupFolder();
+    // Find or create today's sub-folder
+    const checkRes = await window.gapi.client.drive.files.list({
+      q: `name='${today}' and '${backupRoot}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id)', spaces: 'drive',
+    });
+    let dayFolderId;
+    if (checkRes.result.files?.length > 0) {
+      dayFolderId = checkRes.result.files[0].id;
+    } else {
+      const fr = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tk}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: today, mimeType: 'application/vnd.google-apps.folder', parents: [backupRoot] }),
+      });
+      dayFolderId = (await fr.json()).id;
+    }
+    // Copy each live file into today's folder
+    await Promise.allSettled(
+      Object.keys(FILE_MAP).map(name => {
+        const fid = fileIds[name];
+        if (!fid) return Promise.resolve();
+        return fetch(`https://www.googleapis.com/drive/v3/files/${fid}/copy`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${tk}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, parents: [dayFolderId] }),
+        });
+      })
+    );
+    localStorage.setItem('mfg_last_backup', today);
+    // Cleanup old backups async
+    cleanupOldBackups(backupRoot);
+    return today;
+  } catch (e) { return 'error'; }
 }
 
 /** Returns a fingerprint string that changes whenever ANY Drive file is modified.
