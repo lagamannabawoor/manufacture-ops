@@ -63,11 +63,16 @@ async function main() {
   const users            = master.users            || [];
   const products         = master.products         || [];
   const factories        = master.factories        || [];
-  const productionEntries = (production.productionEntries || []).filter(e => e.date === today);
-  const materialPurchases = (materials.materialPurchases  || []).filter(e => e.date === today);
-  const laborPayments     = (finance.laborPayments        || []).filter(e => e.date === today);
-  const expenses          = (finance.expenses             || []).filter(e => e.date === today);
-  const orders            = (finance.orders               || []).filter(e => e.date === today);
+  // Debug: log sample dates so we can verify format
+  const allProd = production.productionEntries || [];
+  console.log('Total production entries in Firestore:', allProd.length);
+  if (allProd.length > 0) console.log('Sample entry date:', allProd[0].date, '| Today:', today);
+
+  const productionEntries = allProd.filter(e => (e.date || '').slice(0, 10) === today);
+  const materialPurchases = (materials.materialPurchases  || []).filter(e => (e.date || '').slice(0, 10) === today);
+  const laborPayments     = (finance.laborPayments        || []).filter(e => (e.date || '').slice(0, 10) === today);
+  const expenses          = (finance.expenses             || []).filter(e => (e.date || '').slice(0, 10) === today);
+  const orders            = (finance.orders               || []).filter(e => (e.date || '').slice(0, 10) === today);
 
   const prodName  = id => products.find(p => p.id === id)?.name  || id;
   const factName  = id => factories.find(f => f.id === id)?.name || id;
