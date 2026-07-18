@@ -16,7 +16,7 @@ export default function BottomNav({ current, onChange, role }) {
   const tabs = ALL_TABS.filter(t => allowed.includes(t.id));
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-gray-200 z-50 safe-bottom">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-gray-200 z-50 bottom-nav">
       <div className="flex">
         {tabs.map(({ id, label, icon: Icon }) => {
           const active = current === id;
@@ -24,10 +24,10 @@ export default function BottomNav({ current, onChange, role }) {
             <button
               key={id}
               onClick={() => onChange(id)}
-              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${active ? 'text-blue-600' : 'text-gray-400'}`}
+              className={`flex-1 flex flex-col items-center justify-center py-3 gap-0.5 transition-colors ${active ? 'text-amber-700' : 'text-gray-400'}`}
             >
               <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-              <span className={`text-[10px] font-medium ${active ? 'text-blue-600' : 'text-gray-400'}`}>{label}</span>
+              <span className={`text-[10px] font-medium ${active ? 'text-amber-700' : 'text-gray-400'}`}>{label}</span>
             </button>
           );
         })}

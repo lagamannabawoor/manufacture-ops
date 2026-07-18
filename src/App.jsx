@@ -73,7 +73,7 @@ function AppShell() {
     <div className="flex flex-col min-h-dvh bg-slate-100">
       <UserBar />
       <SyncBadge />
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto main-scroll">
         {pages[activePage]}
       </main>
       <BottomNav current={activePage} onChange={navigate} role={role} />

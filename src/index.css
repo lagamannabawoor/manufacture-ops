@@ -30,3 +30,13 @@ input, select, textarea {
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
+
+/* Main content clears the bottom nav + device nav bar */
+.main-scroll {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 16px));
+}
+
+/* Bottom nav sits above device nav bar */
+.bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
