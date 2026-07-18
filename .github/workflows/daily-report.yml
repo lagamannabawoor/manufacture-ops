@@ -1,0 +1,30 @@
+name: Urbanmud Daily Report
+
+on:
+  schedule:
+    - cron: '30 18 * * *'   # 12:00 AM IST = 18:30 UTC every day
+  workflow_dispatch:          # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install firebase-admin nodemailer
+        working-directory: scripts
+
+      - name: Send daily report
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_USER:               ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD:       ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: node daily-report.js
+        working-directory: scripts

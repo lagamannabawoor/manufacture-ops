@@ -21,10 +21,11 @@ export const ROLES = {
 
 const SEED = {
   users: [
-    { id: 'u_admin',      name: 'Admin',      username: 'admin',      password: 'admin123',      role: 'admin'      },
-    { id: 'u_accountant', name: 'Accountant', username: 'accountant', password: 'accountant123', role: 'accountant' },
-    { id: 'u_labour',     name: 'Labour',     username: 'labour',     password: 'labour123',     role: 'labour'     },
-    { id: 'u_guest',      name: 'Guest',      username: 'guest',      password: 'guest123',      role: 'guest'      },
+    { id: 'u_superadmin', name: 'Super Admin', username: 'lbawoor',      password: '@urbanmud#RK', role: 'admin',      email: 'lagamanna@gmail.com' },
+    { id: 'u_admin',      name: 'Admin',       username: 'admin',        password: 'admin123',     role: 'admin'      },
+    { id: 'u_accountant', name: 'Accountant',  username: 'accountant',   password: 'accountant123',role: 'accountant' },
+    { id: 'u_labour',     name: 'Labour',      username: 'labour',       password: 'labour123',    role: 'labour'     },
+    { id: 'u_guest',      name: 'Guest',       username: 'guest',        password: 'guest123',     role: 'guest'      },
   ],
   factories: [
     { id: 'f1', name: 'Factory 1' },
