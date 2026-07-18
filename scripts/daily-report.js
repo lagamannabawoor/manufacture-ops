@@ -10,7 +10,13 @@ const { getFirestore }        = require('firebase-admin/firestore');
 const nodemailer               = require('nodemailer');
 
 // ── Firebase init ─────────────────────────────────────────────────────────
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT secret is missing');
+const serviceAccount = JSON.parse(raw);
+// Fix newlines in private key if they were escaped when pasted into GitHub Secrets
+if (serviceAccount.private_key) {
+  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+}
 initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();
 
