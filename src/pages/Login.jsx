@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp, ROLES } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { Factory, Eye, EyeOff, LogIn } from 'lucide-react';
 
 export default function Login() {
@@ -80,15 +80,6 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-5 bg-white/10 rounded-xl p-4">
-          <p className="text-xs text-amber-300 font-semibold mb-2">Default credentials</p>
-          {Object.entries(ROLES).map(([role, info]) => (
-            <p key={role} className="text-xs text-amber-100">
-              <span className="font-semibold">{info.label}:</span> username = <span className="font-mono bg-white/10 px-1 rounded">{role}</span> / password = <span className="font-mono bg-white/10 px-1 rounded">{role}123</span>
-            </p>
-          ))}
-          <p className="text-xs text-amber-300 mt-2">Create more users in Settings after logging in as Admin.</p>
-        </div>
       </div>
     </div>
   );
