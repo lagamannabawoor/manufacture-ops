@@ -142,21 +142,20 @@ async function main() {
 </body>
 </html>`;
 
-  // ── Send to all admin emails ──────────────────────────────────────────────
-  const adminEmails = users
+  // ── Send to all admin emails + hardcoded fallback ────────────────────────
+  const firestoreEmails = users
     .filter(u => u.role === 'admin' && u.email)
     .map(u => u.email);
 
-  if (adminEmails.length === 0) {
-    console.log('No admin emails found — add email field to admin users in Settings.');
-    return;
-  }
+  // Always include REPORT_TO (env var) as guaranteed recipient
+  const fallback = process.env.REPORT_TO || process.env.GMAIL_USER;
+  const allEmails = [...new Set([fallback, ...firestoreEmails].filter(Boolean))];
 
-  console.log('Sending to:', adminEmails.join(', '));
+  console.log('Sending to:', allEmails.join(', '));
 
   await transporter.sendMail({
     from: `"Urbanmud Reports" <${process.env.GMAIL_USER}>`,
-    to: adminEmails.join(', '),
+    to: allEmails.join(', '),
     subject: `Urbanmud Daily Report — ${fmtDate(today + 'T00:00:00')}`,
     html,
   });
