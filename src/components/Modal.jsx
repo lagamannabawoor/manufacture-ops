@@ -2,6 +2,13 @@ import React from 'react';
 import { X } from 'lucide-react';
 
 export default function Modal({ title, onClose, children }) {
+  // Pull the last child (SaveBtn) out into a sticky footer
+  const childArray = React.Children.toArray(children);
+  const lastChild = childArray[childArray.length - 1];
+  const isBtn = lastChild?.type === SaveBtn;
+  const bodyChildren = isBtn ? childArray.slice(0, -1) : childArray;
+  const footerBtn = isBtn ? lastChild : null;
+
   return (
     <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50">
       <div className="bg-white w-full max-w-[480px] rounded-t-2xl flex flex-col" style={{maxHeight:'88dvh'}}>
@@ -11,7 +18,12 @@ export default function Modal({ title, onClose, children }) {
             <X size={20} className="text-gray-500" />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 px-4 py-4 pb-6">{children}</div>
+        <div className="overflow-y-auto flex-1 px-4 pt-4 pb-2">{bodyChildren}</div>
+        {footerBtn && (
+          <div className="px-4 pt-2 pb-4 bg-white border-t border-gray-100 shrink-0">
+            {footerBtn}
+          </div>
+        )}
       </div>
     </div>
   );
