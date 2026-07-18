@@ -1,8 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   initGoogleAPIs, requestSignIn, signOutDrive,
-  isSignedIn, loadFromDrive, saveToDrive, getUserInfo, getDriveFingerprint, KEY_TO_FILE, createDailyBackup,
+  isSignedIn, loadFromDrive, saveToDrive, getUserInfo, createDailyBackup,
 } from '../services/googleDrive';
+import {
+  initFirebase, isFirebaseReady, getStoredConfig,
+  loadFromFirestore, saveToFirestore, subscribeToChanges, unsubscribeAll, KEY_TO_DOC,
+} from '../services/firestoreDb';
 
 const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -99,18 +103,19 @@ export function AppProvider({ children }) {
   const currentUserRef = useRef(null);
   currentUserRef.current = currentUser;
 
+  // ── Firebase sync state ─────────────────────────────────────────────────
+  const [fbStatus, setFbStatus] = useState('not-configured'); // not-configured | connecting | ready | error
+  const skipFbRef = useRef(true);
+  const dirtyKeysRef = useRef(new Set());
+  const saveTimer = useRef(null);
+
+  // ── Drive (backup only) state ────────────────────────────────────────────
   const [driveStatus, setDriveStatus] = useState('idle');
-  const [driveUser, setDriveUser] = useState(null);
+  const [driveUser, setDriveUser]   = useState(null);
   const [driveReady, setDriveReady] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState(null);
-  const [clientId, setClientId] = useState(
+  const [clientId, setClientId]     = useState(
     () => ENV_CLIENT_ID || localStorage.getItem('mfg_google_client_id') || ''
   );
-  const saveTimer = useRef(null);
-  const skipDriveRef = useRef(true);
-  const lastFingerprintRef = useRef(null);
-  const dirtyKeysRef = useRef(new Set());
-  const pollRef = useRef(null);
 
   function markDirty(key) { dirtyKeysRef.current.add(key); }
 
@@ -173,16 +178,55 @@ export function AppProvider({ children }) {
     markDirty('pendingProduction');
   }
 
-  // Init Google APIs whenever clientId changes
-  useEffect(() => {
-    if (!clientId) { setDriveStatus('not-configured'); setDriveReady(false); return; }
-    setDriveReady(false);
-    setDriveStatus('idle');
-    initGoogleAPIs(clientId)
-      .then(() => setDriveReady(true))
-      .catch(() => setDriveStatus('error'));
-  }, [clientId]);
+  // ── Firebase init (on mount + whenever user saves new config) ────────────
+  function connectFirebase(config) {
+    const cfg = config || getStoredConfig();
+    if (!cfg) { setFbStatus('not-configured'); return; }
+    setFbStatus('connecting');
+    const ok = initFirebase(cfg);
+    if (!ok) { setFbStatus('error'); return; }
+    loadFromFirestore().then(remote => {
+      if (remote) {
+        skipFbRef.current = true;
+        setData({ ...SEED, ...remote });
+      } else {
+        // First time: push local seed/data to Firestore
+        saveToFirestore(data, null).catch(() => {});
+      }
+      setFbStatus('ready');
+      subscribeToChanges(remote => {
+        skipFbRef.current = true;
+        setData(prev => ({ ...SEED, ...prev, ...remote }));
+      });
+    }).catch(() => setFbStatus('error'));
+  }
 
+  useEffect(() => {
+    connectFirebase();
+    return () => unsubscribeAll();
+  }, []);
+
+  function saveFirebaseConfig(rawConfig) {
+    localStorage.setItem('mfg_firebase_config', JSON.stringify(rawConfig));
+    unsubscribeAll();
+    connectFirebase(rawConfig);
+  }
+
+  // ── Save to localStorage + debounce-save to Firestore ────────────────────
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!isFirebaseReady() || skipFbRef.current) { skipFbRef.current = false; return; }
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const dirty = new Set(dirtyKeysRef.current);
+        dirtyKeysRef.current.clear();
+        await saveToFirestore(data, dirty.size > 0 ? dirty : null);
+      } catch {}
+    }, 1500);
+  }, [data]);
+
+  // ── Drive (backup only) ───────────────────────────────────────────────────
   function saveClientId(id) {
     const trimmed = id.trim();
     localStorage.setItem('mfg_google_client_id', trimmed);
@@ -190,83 +234,11 @@ export function AppProvider({ children }) {
     setDriveUser(null);
   }
 
-  // Save to localStorage always; debounce-save to Drive when signed in
+  // Init Drive APIs when clientId present (needed for backup)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    if (!driveReady || !isSignedIn() || skipDriveRef.current) {
-      skipDriveRef.current = false;
-      return;
-    }
-    setDriveStatus('syncing');
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      try {
-        const dirty = new Set(dirtyKeysRef.current);
-        dirtyKeysRef.current.clear();
-        await saveToDrive(data, dirty.size > 0 ? dirty : null);
-        const fp = await getDriveFingerprint();
-        if (fp) lastFingerprintRef.current = fp;
-        setDriveStatus('synced');
-      } catch {
-        setDriveStatus('error');
-      }
-    }, 2500);
-  }, [data, driveReady]);
-
-  // Core sync check — pull from Drive if any file fingerprint changed
-  async function checkAndPull() {
-    if (!isSignedIn()) return;
-    try {
-      const fp = await getDriveFingerprint();
-      if (!fp) return;
-      if (lastFingerprintRef.current && fp !== lastFingerprintRef.current) {
-        const remoteData = await loadFromDrive();
-        if (remoteData) {
-          lastFingerprintRef.current = fp;
-          skipDriveRef.current = true;
-          dirtyKeysRef.current.clear();
-          setData(prev => ({ ...SEED, ...remoteData }));
-          setLastSyncedAt(new Date());
-          setDriveStatus('synced');
-        }
-      } else if (!lastFingerprintRef.current) {
-        lastFingerprintRef.current = fp;
-      }
-    } catch {}
-  }
-
-  // Manual sync trigger
-  async function syncNow() {
-    if (!isSignedIn()) return;
-    setDriveStatus('syncing');
-    try {
-      const remoteData = await loadFromDrive();
-      if (remoteData) {
-        skipDriveRef.current = true;
-        dirtyKeysRef.current.clear();
-        setData(prev => ({ ...SEED, ...remoteData }));
-        setLastSyncedAt(new Date());
-      }
-      const fp = await getDriveFingerprint();
-      if (fp) lastFingerprintRef.current = fp;
-      setDriveStatus('synced');
-    } catch { setDriveStatus('error'); }
-  }
-
-  // Poll every 20s + sync on page focus
-  useEffect(() => {
-    if (!driveReady || !driveUser) {
-      if (pollRef.current) clearInterval(pollRef.current);
-      return;
-    }
-    pollRef.current = setInterval(checkAndPull, 20000);
-    const onVisible = () => { if (document.visibilityState === 'visible') checkAndPull(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [driveReady, driveUser]);
+    if (!clientId) { setDriveReady(false); return; }
+    initGoogleAPIs(clientId).then(() => setDriveReady(true)).catch(() => {});
+  }, [clientId]);
 
   async function signInWithGoogle() {
     setDriveStatus('loading');
@@ -275,23 +247,9 @@ export function AppProvider({ children }) {
       if (!resp) { setDriveStatus('idle'); return; }
       const user = await getUserInfo();
       setDriveUser(user);
-      setDriveStatus('loading');
-      const driveData = await loadFromDrive();
-      skipDriveRef.current = true;
-      dirtyKeysRef.current.clear();
-      if (driveData) {
-        setData({ ...SEED, ...driveData });
-      } else {
-        await saveToDrive(data, null);
-      }
-      const fp = await getDriveFingerprint();
-      if (fp) lastFingerprintRef.current = fp;
       setDriveStatus('synced');
-      // Trigger daily backup silently after sign-in
       createDailyBackup(false).catch(() => {});
-    } catch {
-      setDriveStatus('error');
-    }
+    } catch { setDriveStatus('error'); }
   }
 
   function signOutFromGoogle() {
@@ -341,13 +299,13 @@ export function AppProvider({ children }) {
     submitPendingProduction,
     approvePendingProduction,
     rejectPendingProduction,
+    fbStatus,
+    saveFirebaseConfig,
     driveStatus,
     driveUser,
     driveReady,
     clientId,
     saveClientId,
-    syncNow,
-    lastSyncedAt,
     createDailyBackup,
     signInWithGoogle,
     signOutFromGoogle,

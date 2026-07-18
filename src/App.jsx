@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AppProvider, ROLES, useApp } from './context/AppContext';
 import BottomNav from './components/BottomNav';
-import GoogleAuth from './components/GoogleAuth';
+import { Wifi, WifiOff, LogOut } from 'lucide-react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Production from './pages/Production';
@@ -9,7 +9,6 @@ import Materials from './pages/Materials';
 import Finance from './pages/Finance';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
-import { LogOut } from 'lucide-react';
 
 const ROLE_COLORS = {
   admin:      'bg-red-100 text-red-700',
@@ -39,6 +38,14 @@ function UserBar() {
   );
 }
 
+function SyncBadge() {
+  const { fbStatus } = useApp();
+  if (fbStatus === 'ready') return null;
+  const map = { connecting: ['Connecting…', 'text-amber-500'], error: ['Sync error', 'text-red-500'], 'not-configured': ['Sync not configured', 'text-gray-400'] };
+  const [label, cls] = map[fbStatus] || ['…', 'text-gray-300'];
+  return <div className={`text-[10px] font-semibold px-3 py-1 text-center ${cls} bg-white border-b border-gray-100`}>{label}</div>;
+}
+
 function AppShell() {
   const { currentUser } = useApp();
   const [page, setPage] = useState('');
@@ -65,9 +72,9 @@ function AppShell() {
   return (
     <div className="flex flex-col min-h-dvh bg-slate-100">
       <UserBar />
+      <SyncBadge />
       <main className="flex-1 overflow-y-auto pb-20">
         {pages[activePage]}
-        <GoogleAuth />
       </main>
       <BottomNav current={activePage} onChange={navigate} role={role} />
     </div>
