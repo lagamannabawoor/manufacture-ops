@@ -19,10 +19,20 @@ const COLLECTION = 'mfg_data';
 let db = null;
 let _unsubscribers = [];
 
+// ── Default config (Urbanmud Firebase project) ─────────────────────────────
+const DEFAULT_CONFIG = {
+  apiKey:            "AIzaSyAfEPTyQlajeSbPufZImF_sffS6Bl6ELIc",
+  authDomain:        "urbanmud-bricks-and-blocks.firebaseapp.com",
+  projectId:         "urbanmud-bricks-and-blocks",
+  storageBucket:     "urbanmud-bricks-and-blocks.firebasestorage.app",
+  messagingSenderId: "502323148693",
+  appId:             "1:502323148693:web:7c5ae9e4cfb1896799a89c",
+};
+
 // ── Init ───────────────────────────────────────────────────────────────────
 export function initFirebase(config) {
   try {
-    const app = getApps().length ? getApps()[0] : initializeApp(config);
+    const app = getApps().length ? getApps()[0] : initializeApp(config || DEFAULT_CONFIG);
     db = getFirestore(app);
     return true;
   } catch { return false; }
@@ -44,7 +54,8 @@ export function getStoredConfig() {
     appId:             import.meta.env.VITE_FIREBASE_APP_ID,
   };
   if (env.apiKey && env.projectId) return env;
-  return parseConfig(localStorage.getItem('mfg_firebase_config'));
+  const stored = parseConfig(localStorage.getItem('mfg_firebase_config'));
+  return stored || DEFAULT_CONFIG;
 }
 
 // ── Read ───────────────────────────────────────────────────────────────────
