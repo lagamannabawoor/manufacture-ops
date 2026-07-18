@@ -244,22 +244,46 @@ function FirebaseSection() {
   );
 }
 
+function parseFirebaseConfig(raw) {
+  try {
+    // Try plain JSON first
+    const j = JSON.parse(raw);
+    if (j.apiKey) return j;
+  } catch {}
+  try {
+    // Extract from JS object literal: apiKey: "...", ...
+    const extract = (key) => {
+      const m = raw.match(new RegExp(`${key}\\s*:\\s*["'\`]([^"'\`]+)["'\`]`));
+      return m ? m[1] : '';
+    };
+    const cfg = {
+      apiKey:            extract('apiKey'),
+      authDomain:        extract('authDomain'),
+      projectId:         extract('projectId'),
+      storageBucket:     extract('storageBucket'),
+      messagingSenderId: extract('messagingSenderId'),
+      appId:             extract('appId'),
+    };
+    if (cfg.apiKey && cfg.projectId) return cfg;
+  } catch {}
+  return null;
+}
+
 function FirebasePanel({ onClose }) {
   const { fbStatus, saveFirebaseConfig } = useApp();
-  const stored = (() => { try { return JSON.parse(localStorage.getItem('mfg_firebase_config') || '{}'); } catch { return {}; } })();
-  const [form, setForm] = useState({
-    apiKey: stored.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || '',
-    authDomain: stored.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-    projectId: stored.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-    storageBucket: stored.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: stored.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: stored.appId || import.meta.env.VITE_FIREBASE_APP_ID || '',
-  });
+  const stored = (() => { try { return localStorage.getItem('mfg_firebase_config') || ''; } catch { return ''; } })();
+  const [raw, setRaw] = useState(stored);
+  const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
   function handleSave() {
-    if (!form.apiKey || !form.projectId) return alert('API Key and Project ID are required.');
-    saveFirebaseConfig(form);
+    const cfg = parseFirebaseConfig(raw);
+    if (!cfg) {
+      setError('Could not read config — make sure you pasted the full firebaseConfig block.');
+      return;
+    }
+    setError('');
+    saveFirebaseConfig(cfg);
     setSaved(true);
   }
 
@@ -267,32 +291,63 @@ function FirebasePanel({ onClose }) {
     <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col max-w-[480px] mx-auto">
       <Header title="Cloud Sync Setup" onBack={onClose} />
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+
         {fbStatus === 'ready' && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
             <CheckCircle size={16} className="text-green-500" />
-            <p className="text-sm font-semibold text-green-700">Firebase connected — all employees share data automatically. No Google login needed.</p>
+            <p className="text-sm font-semibold text-green-700">Connected ✓ — all employees share data automatically.</p>
           </div>
         )}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
-          {[['apiKey','API Key'],['authDomain','Auth Domain'],['projectId','Project ID'],['storageBucket','Storage Bucket'],['messagingSenderId','Messaging Sender ID'],['appId','App ID']].map(([k,label]) => (
-            <div key={k}>
-              <p className="text-xs font-medium text-gray-600 mb-1">{label}</p>
-              <input className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300" value={form[k]} onChange={e => { setForm(f => ({...f,[k]:e.target.value})); setSaved(false); }} />
+
+        {/* Step-by-step with direct links */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+          <div className="p-4">
+            <p className="text-sm font-bold text-gray-800 mb-3">3 steps — takes 2 minutes</p>
+
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center shrink-0">1</span>
+                <div>
+                  <p className="text-xs font-semibold text-gray-700">Create a Firebase project</p>
+                  <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer"
+                    className="text-xs text-blue-600 underline">Open console.firebase.google.com →</a>
+                  <p className="text-xs text-gray-400 mt-0.5">Click "Add project" → any name → Continue → Create</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center shrink-0">2</span>
+                <div>
+                  <p className="text-xs font-semibold text-gray-700">Enable Firestore Database</p>
+                  <p className="text-xs text-gray-400">Left sidebar → Build → Firestore Database → Create database → <strong>Start in test mode</strong> → Enable</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center shrink-0">3</span>
+                <div>
+                  <p className="text-xs font-semibold text-gray-700">Get your config</p>
+                  <p className="text-xs text-gray-400">⚙️ gear → Project settings → scroll down → click <strong>&lt;/&gt;</strong> → Register app → copy the <strong>firebaseConfig</strong> block → paste below</p>
+                </div>
+              </div>
             </div>
-          ))}
-          <button onClick={handleSave} className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg mt-1">
-            {saved ? '✓ Saved & Connected' : 'Save & Connect'}
-          </button>
-        </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-amber-700 mb-2">How to set up Firebase (free)</p>
-          <ol className="text-xs text-amber-700 space-y-1.5 list-decimal list-inside">
-            <li>Go to <strong>console.firebase.google.com</strong></li>
-            <li>Create a project → <strong>Add app → Web (&lt;/&gt;)</strong></li>
-            <li>Copy the <strong>firebaseConfig</strong> values shown</li>
-            <li>Firestore Database → Create → <strong>Start in test mode</strong></li>
-            <li>Paste each value above and tap Save</li>
-          </ol>
+          </div>
+
+          <div className="p-4">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Paste your firebaseConfig here</p>
+            <p className="text-xs text-gray-400 mb-2">Copy everything from <code className="bg-gray-100 px-1 rounded">apiKey: "..."</code> to the closing <code className="bg-gray-100 px-1 rounded">{'}'}</code> and paste it below.</p>
+            <textarea
+              className="w-full border border-gray-200 rounded-lg p-3 text-xs font-mono bg-gray-50 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300"
+              rows={8}
+              placeholder={`apiKey: "AIzaSy...",\nauthDomain: "your-app.firebaseapp.com",\nprojectId: "your-app",\nstorageBucket: "your-app.appspot.com",\nmessagingSenderId: "123456789",\nappId: "1:123:web:abc"`}
+              value={raw}
+              onChange={e => { setRaw(e.target.value); setSaved(false); setError(''); }}
+            />
+            {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            <button onClick={handleSave} className="mt-2 w-full py-2.5 bg-amber-700 text-white text-sm font-semibold rounded-lg">
+              {saved ? '✓ Connected!' : 'Connect'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
