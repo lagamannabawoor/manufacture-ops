@@ -4,14 +4,14 @@ import { X } from 'lucide-react';
 export default function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
-      <div className="bg-white w-full max-w-[480px] rounded-t-2xl max-h-[90dvh] flex flex-col">
+      <div className="bg-white w-full max-w-[480px] rounded-t-2xl flex flex-col" style={{maxHeight:'calc(92dvh - env(safe-area-inset-bottom, 0px))'}}>
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
           <h2 className="text-base font-semibold text-gray-800">{title}</h2>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100">
             <X size={20} className="text-gray-500" />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 px-4 py-4">{children}</div>
+        <div className="overflow-y-auto flex-1 px-4 py-4" style={{paddingBottom:'calc(1rem + env(safe-area-inset-bottom, 0px))'}}>{children}</div>
       </div>
     </div>
   );
