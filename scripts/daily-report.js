@@ -63,10 +63,16 @@ async function main() {
   const users            = master.users            || [];
   const products         = master.products         || [];
   const factories        = master.factories        || [];
-  // Debug: log sample dates so we can verify format
+  // Debug: show exactly what's in Firestore
   const allProd = production.productionEntries || [];
-  console.log('Total production entries in Firestore:', allProd.length);
-  if (allProd.length > 0) console.log('Sample entry date:', allProd[0].date, '| Today:', today);
+  console.log('--- FIRESTORE DEBUG ---');
+  console.log('production doc keys:', Object.keys(production));
+  console.log('Total productionEntries:', allProd.length);
+  console.log('materials doc keys:', Object.keys(materials));
+  console.log('Total materialPurchases:', (materials.materialPurchases||[]).length);
+  console.log('finance doc keys:', Object.keys(finance));
+  if (allProd.length > 0) console.log('First entry:', JSON.stringify(allProd[0]));
+  console.log('----------------------');
 
   const productionEntries = allProd.filter(e => (e.date || '').slice(0, 10) === today);
   const materialPurchases = (materials.materialPurchases  || []).filter(e => (e.date || '').slice(0, 10) === today);
