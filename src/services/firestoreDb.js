@@ -2,6 +2,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore, doc, getDoc, setDoc, onSnapshot,
 } from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 
 // ── Document layout (mirrors Drive FILE_MAP) ───────────────────────────────
 export const DOC_MAP = {
@@ -34,6 +35,8 @@ export function initFirebase(config) {
   try {
     const app = getApps().length ? getApps()[0] : initializeApp(config || DEFAULT_CONFIG);
     db = getFirestore(app);
+    // Silent anonymous auth — blocks unauthenticated external access
+    signInAnonymously(getAuth(app)).catch(() => {});
     return true;
   } catch { return false; }
 }
