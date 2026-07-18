@@ -11,11 +11,13 @@ export const FILE_MAP = {
 export const KEY_TO_FILE = {};
 Object.entries(FILE_MAP).forEach(([file, keys]) => keys.forEach(k => { KEY_TO_FILE[k] = file; }));
 
-const LEGACY_FILE = 'manufacture_ops_data.json';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const FOLDER_NAME  = 'ManufactureOps';
+const LEGACY_FILE  = 'manufacture_ops_data.json';
+const SCOPES       = 'https://www.googleapis.com/auth/drive.file';
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
 let tokenClient = null;
+let folderId = localStorage.getItem('mfg_folder_id') || null;
 
 // Per-file ID cache (persisted in localStorage)
 const fileIds = {};
@@ -37,9 +39,46 @@ function loadScript(src) {
 
 function token() { return window.gapi?.client?.getToken()?.access_token || null; }
 
+/** Find or create the dedicated Drive folder; returns its ID. */
+async function resolveFolder() {
+  if (folderId) {
+    try {
+      await window.gapi.client.drive.files.get({ fileId: folderId, fields: 'id' });
+      return folderId;
+    } catch {
+      folderId = null;
+      localStorage.removeItem('mfg_folder_id');
+    }
+  }
+  // Search for existing folder
+  const listRes = await window.gapi.client.drive.files.list({
+    q: `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields: 'files(id)',
+    spaces: 'drive',
+  });
+  if (listRes.result.files?.length > 0) {
+    folderId = listRes.result.files[0].id;
+    localStorage.setItem('mfg_folder_id', folderId);
+    return folderId;
+  }
+  // Create folder
+  const tk = token();
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tk}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  const folder = await createRes.json();
+  folderId = folder.id;
+  localStorage.setItem('mfg_folder_id', folderId);
+  return folderId;
+}
+
+/** Search for a file by name INSIDE the dedicated folder. */
 async function searchFile(name) {
+  const parent = await resolveFolder();
   const res = await window.gapi.client.drive.files.list({
-    q: `name='${name}' and trashed=false`,
+    q: `name='${name}' and '${parent}' in parents and trashed=false`,
     fields: 'files(id)',
     spaces: 'drive',
   });
@@ -73,15 +112,20 @@ async function readFile(name) {
 async function writeFile(name, partial) {
   const tk = token();
   if (!tk) throw new Error('Not signed in');
+  const parent = await resolveFolder();
   const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify({ name, mimeType: 'application/json' })], { type: 'application/json' }));
-  form.append('file', new Blob([JSON.stringify(partial)], { type: 'application/json' }));
   const id = fileIds[name];
   if (id) {
+    // Update existing — metadata without parents (can't change parent on PATCH)
+    form.append('metadata', new Blob([JSON.stringify({ name, mimeType: 'application/json' })], { type: 'application/json' }));
+    form.append('file', new Blob([JSON.stringify(partial)], { type: 'application/json' }));
     await fetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=multipart`, {
       method: 'PATCH', headers: { Authorization: `Bearer ${tk}` }, body: form,
     });
   } else {
+    // Create inside folder
+    form.append('metadata', new Blob([JSON.stringify({ name, mimeType: 'application/json', parents: [parent] })], { type: 'application/json' }));
+    form.append('file', new Blob([JSON.stringify(partial)], { type: 'application/json' }));
     const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
       method: 'POST', headers: { Authorization: `Bearer ${tk}` }, body: form,
     });
@@ -128,7 +172,8 @@ export function signOutDrive() {
   const tk = window.gapi?.client?.getToken();
   if (tk?.access_token) { window.google.accounts.oauth2.revoke(tk.access_token); window.gapi.client.setToken(''); }
   Object.keys(FILE_MAP).forEach(name => { fileIds[name] = null; localStorage.removeItem(`mfg_fid_${name}`); });
-  // clear legacy key too
+  folderId = null;
+  localStorage.removeItem('mfg_folder_id');
   localStorage.removeItem('mfg_drive_file_id');
 }
 
