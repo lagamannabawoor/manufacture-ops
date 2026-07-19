@@ -367,7 +367,7 @@ function DriveClientPanel({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+    <div className="fixed inset-0 z-[150] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
       <Header title="Google Drive Backup" onBack={onClose} />
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
