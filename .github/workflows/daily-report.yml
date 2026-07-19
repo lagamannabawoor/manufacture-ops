@@ -18,7 +18,7 @@ jobs:
           node-version: '24'
 
       - name: Install dependencies
-        run: npm install firebase-admin nodemailer
+        run: npm install firebase-admin nodemailer xlsx
         working-directory: scripts
 
       - name: Send daily report
