@@ -370,8 +370,9 @@ async function main() {
   const configuredEmails = (master.reportEmails || []).filter(Boolean);
   // Fallback: admin users with email + REPORT_TO env var
   const adminEmails = users.filter(u => u.role === 'admin' && u.email).map(u => u.email);
-  const fallback = process.env.REPORT_TO || process.env.GMAIL_USER;
-  const allEmails = [...new Set([...configuredEmails, ...adminEmails, fallback].filter(Boolean))];
+  const fallbackList = (process.env.REPORT_TO || process.env.GMAIL_USER || '')
+    .split(',').map(e => e.trim()).filter(Boolean);
+  const allEmails = [...new Set([...configuredEmails, ...adminEmails, ...fallbackList])];
   console.log('Sending to:', allEmails.join(', '));
 
   await transporter.sendMail({

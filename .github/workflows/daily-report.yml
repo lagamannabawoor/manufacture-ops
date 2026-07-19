@@ -35,7 +35,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GMAIL_USER:               ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD:       ${{ secrets.GMAIL_APP_PASSWORD }}
-          REPORT_TO:                lagamanna@gmail.com
+          REPORT_TO:                lagamanna@gmail.com,${{ secrets.GMAIL_USER }}
           REPORT_FROM_DATE:         ${{ github.event.inputs.from_date }}
           REPORT_TO_DATE:           ${{ github.event.inputs.to_date }}
         run: node daily-report.js
