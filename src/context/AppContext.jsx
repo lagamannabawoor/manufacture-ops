@@ -81,6 +81,7 @@ const SEED = {
   expenses: [],
   pendingProduction: [],
   auditLog: [],
+  reportEmails: ['lagamanna@gmail.com'],
 };
 
 function loadData() {
@@ -288,6 +289,11 @@ export function AppProvider({ children }) {
     markDirty(key);
   }
 
+  function setReportEmails(emails) {
+    setData(prev => ({ ...prev, reportEmails: emails }));
+    markDirty('reportEmails');
+  }
+
   function resetData() {
     setData(SEED);
   }
@@ -315,6 +321,7 @@ export function AppProvider({ children }) {
     deleteItem,
     setList,
     resetData,
+    setReportEmails,
   };
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>;

@@ -3,14 +3,16 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
-import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail } from 'lucide-react';
 
 export default function Settings() {
   const { currentUser, logout } = useApp();
   const isAdmin = currentUser?.role === 'admin';
+  const isSuperAdmin = currentUser?.username === 'lbawoor';
   const [section, setSection] = useState(null);
   const [showUsers, setShowUsers] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showReportEmails, setShowReportEmails] = useState(false);
   const sections = [
     { id: 'factories', label: 'Factories', icon: Building2, color: 'text-blue-500 bg-blue-50' },
     { id: 'productCategories', label: 'Product Categories', icon: Layers, color: 'text-indigo-500 bg-indigo-50' },
@@ -59,6 +61,15 @@ export default function Settings() {
                 </div>
                 <ChevronRight size={16} className="text-gray-300" />
               </button>
+              {isSuperAdmin && (
+                <button onClick={() => setShowReportEmails(true)} className="w-full flex items-center justify-between px-4 py-4 border-t border-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sky-500 bg-sky-50"><Mail size={18} /></div>
+                    <span className="text-sm font-medium text-gray-700">Report Email Recipients</span>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-300" />
+                </button>
+              )}
             </div>
           </>
         )}
@@ -69,6 +80,7 @@ export default function Settings() {
       </div>
       {showUsers && <UserManagementPanel onClose={() => setShowUsers(false)} />}
       {showAudit && <AuditLog onBack={() => setShowAudit(false)} />}
+      {showReportEmails && <ReportEmailsPanel onClose={() => setShowReportEmails(false)} />}
       {section && (
         <SectionEditor
           sectionId={section}
@@ -517,6 +529,75 @@ function UserManagementPanel({ onClose }) {
           <SaveBtn onClick={save} label="Create User" />
         </Modal>
       )}
+    </div>
+  );
+}
+
+function ReportEmailsPanel({ onClose }) {
+  const { reportEmails = [], setReportEmails } = useApp();
+  const [newEmail, setNewEmail] = useState('');
+  const [error, setError] = useState('');
+
+  function addEmail() {
+    const email = newEmail.trim().toLowerCase();
+    if (!email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Enter a valid email address'); return; }
+    if (reportEmails.includes(email)) { setError('Email already in the list'); return; }
+    setReportEmails([...reportEmails, email]);
+    setNewEmail('');
+    setError('');
+  }
+
+  function removeEmail(email) {
+    if (reportEmails.length <= 1) { setError('At least one recipient is required'); return; }
+    setReportEmails(reportEmails.filter(e => e !== email));
+  }
+
+  return (
+    <div className="fixed inset-0 z-[150] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+      <Header title="Report Recipients" subtitle="Daily report email list" onBack={onClose} />
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 mb-4">
+          <div className="flex items-start gap-2">
+            <Mail size={16} className="text-sky-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-sky-700">Daily reports are emailed to these addresses every night at 12:00 AM IST.</p>
+          </div>
+        </div>
+
+        <div className="space-y-2 mb-4">
+          {reportEmails.map(email => (
+            <div key={email} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-sky-50 rounded-lg flex items-center justify-center">
+                  <Mail size={15} className="text-sky-500" />
+                </div>
+                <span className="text-sm font-medium text-gray-800">{email}</span>
+              </div>
+              <button onClick={() => removeEmail(email)} className="text-red-400 hover:text-red-600 p-1">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs font-semibold text-gray-500 mb-3">Add New Recipient</p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              className={`${inputCls} flex-1`}
+              placeholder="email@example.com"
+              value={newEmail}
+              onChange={e => { setNewEmail(e.target.value); setError(''); }}
+              onKeyDown={e => e.key === 'Enter' && addEmail()}
+            />
+            <button onClick={addEmail} className="px-4 py-2.5 bg-sky-600 text-white font-semibold rounded-xl text-sm flex items-center gap-1.5">
+              <Plus size={16} /> Add
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+        </div>
+      </div>
     </div>
   );
 }

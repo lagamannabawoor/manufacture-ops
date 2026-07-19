@@ -6,7 +6,7 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 
 // ── Document layout (mirrors Drive FILE_MAP) ───────────────────────────────
 export const DOC_MAP = {
-  master:     ['factories','productCategories','products','materialTypes','laborGroups','bankAccounts','expenseCategories','users'],
+  master:     ['factories','productCategories','products','materialTypes','laborGroups','bankAccounts','expenseCategories','users','reportEmails'],
   production: ['productionEntries','pendingProduction'],
   materials:  ['materialPurchases'],
   finance:    ['laborPayments','orders','orderPayments','expenses'],

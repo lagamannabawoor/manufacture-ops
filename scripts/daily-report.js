@@ -360,9 +360,12 @@ async function main() {
   });
 
   // ── Send email ────────────────────────────────────────────────────────
-  const firestoreEmails = users.filter(u => u.role === 'admin' && u.email).map(u => u.email);
+  // Primary: reportEmails list managed from app Settings
+  const configuredEmails = (master.reportEmails || []).filter(Boolean);
+  // Fallback: admin users with email + REPORT_TO env var
+  const adminEmails = users.filter(u => u.role === 'admin' && u.email).map(u => u.email);
   const fallback = process.env.REPORT_TO || process.env.GMAIL_USER;
-  const allEmails = [...new Set([fallback, ...firestoreEmails].filter(Boolean))];
+  const allEmails = [...new Set([...configuredEmails, ...adminEmails, fallback].filter(Boolean))];
   console.log('Sending to:', allEmails.join(', '));
 
   await transporter.sendMail({
