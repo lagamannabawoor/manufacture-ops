@@ -3,7 +3,16 @@ name: Urbanmud Daily Report
 on:
   schedule:
     - cron: '30 18 * * *'   # 12:00 AM IST = 18:30 UTC every day
-  workflow_dispatch:          # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      from_date:
+        description: 'Report start date (YYYY-MM-DD). Leave blank for today.'
+        required: false
+        default: ''
+      to_date:
+        description: 'Report end date (YYYY-MM-DD). Leave blank for today.'
+        required: false
+        default: ''
 
 jobs:
   send-report:
@@ -27,5 +36,7 @@ jobs:
           GMAIL_USER:               ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD:       ${{ secrets.GMAIL_APP_PASSWORD }}
           REPORT_TO:                lagamanna@gmail.com
+          REPORT_FROM_DATE:         ${{ github.event.inputs.from_date }}
+          REPORT_TO_DATE:           ${{ github.event.inputs.to_date }}
         run: node daily-report.js
         working-directory: scripts

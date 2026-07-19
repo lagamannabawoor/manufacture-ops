@@ -4,6 +4,7 @@ import {
   TrendingUp, TrendingDown, Package, Layers, DollarSign,
   Hammer, ChevronRight, CalendarDays, Building2, AlertTriangle,
   ShoppingBag, Users, Receipt, BarChart2, ArrowUpRight, ArrowDownRight,
+  Boxes, FlaskConical, Target, Percent,
 } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
 
@@ -30,8 +31,38 @@ export default function Dashboard({ navigate }) {
   const stockLevels = app.materialTypes.map(mat => {
     const purchased = app.materialPurchases.filter(p => p.materialTypeId === mat.id).reduce((s, p) => s + Number(p.quantity || 0), 0);
     const used = mat.id === 'm1' ? app.productionEntries.reduce((s, e) => s + Number(e.cementBags || 0), 0) : 0;
-    return { ...mat, purchased, used, stock: purchased - used };
+    const spent  = app.materialPurchases.filter(p => p.materialTypeId === mat.id).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+    return { ...mat, purchased, used, stock: purchased - used, spent };
   });
+
+  // ── Finished goods inventory ──────────────────────────────────────────
+  const finishedGoods = app.products.map(prod => {
+    const produced  = app.productionEntries.filter(e => e.productId === prod.id).reduce((s, e) => s + Number(e.quantity || 0), 0);
+    const ordered   = app.orders.filter(o => o.productId === prod.id).reduce((s, o) => s + Number(o.quantity || 0), 0);
+    const delivered = app.orders.filter(o => o.productId === prod.id && o.status === 'completed').reduce((s, o) => s + Number(o.quantity || 0), 0);
+    return { ...prod, produced, ordered, delivered, inStock: Math.max(0, produced - delivered) };
+  }).filter(p => p.produced > 0);
+
+  // ── Manufacturing KPIs ────────────────────────────────────────────────
+  const allUnits    = app.productionEntries.reduce((s, e) => s + Number(e.quantity || 0), 0);
+  const allCement   = app.productionEntries.reduce((s, e) => s + Number(e.cementBags || 0), 0);
+  const allIncome   = app.orderPayments.filter(p => p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
+  const allMatCost  = app.materialPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+  const allLabor    = app.laborPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const allExp      = app.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const allCost     = allMatCost + allLabor + allExp;
+  const cementPerHundred = allUnits > 0 ? ((allCement / allUnits) * 100).toFixed(1) : 0;
+  const revenuePerUnit   = allUnits > 0 ? (allIncome / allUnits).toFixed(0) : 0;
+  const grossMarginPct   = allIncome > 0 ? (((allIncome - allCost) / allIncome) * 100).toFixed(1) : 0;
+  const totalOrders      = app.orders.length;
+  const completedOrders  = app.orders.filter(o => o.status === 'completed').length;
+  const fulfillmentRate  = totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(0) : 0;
+  const totalReceivables = app.orders
+    .filter(o => o.status !== 'completed')
+    .reduce((s, o) => {
+      const rcvd = app.orderPayments.filter(p => p.orderId === o.id && p.direction === 'received').reduce((a, p) => a + Number(p.amount || 0), 0);
+      return s + Math.max(0, Number(o.totalAmount || 0) - rcvd);
+    }, 0);
 
   // ── Orders summary ────────────────────────────────────────────────────
   const pendingOrders   = app.orders.filter(o => o.status === 'pending').length;
@@ -94,7 +125,7 @@ export default function Dashboard({ navigate }) {
 
         {/* Section tabs */}
         <div className="flex bg-white rounded-xl shadow-sm border border-gray-100 p-1 mb-4">
-          {[['today', 'Today'], ['stock', 'Stock'], ['orders', 'Orders']].map(([id, label]) => (
+          {[['today', 'Today'], ['stock', 'Stock'], ['orders', 'Orders'], ['kpis', 'KPIs']].map(([id, label]) => (
             <button key={id} onClick={() => setActiveSection(id)}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
                 activeSection === id ? 'bg-amber-700 text-white shadow-sm' : 'text-gray-500'
@@ -247,49 +278,129 @@ export default function Dashboard({ navigate }) {
 
         {/* ── STOCK SECTION ─────────────────────────────────────── */}
         {activeSection === 'stock' && (
-          <div className="space-y-3 mb-4">
-            {stockLevels.map(mat => {
-              const pct = mat.purchased > 0 ? (mat.stock / mat.purchased) * 100 : 0;
-              const isLow = pct < 20 && mat.purchased > 0;
-              return (
-                <div key={mat.id} className={`bg-white rounded-xl shadow-sm border p-4 ${isLow ? 'border-red-200' : 'border-gray-100'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isLow ? 'bg-red-50' : 'bg-amber-50'}`}>
-                        <Package size={17} className={isLow ? 'text-red-500' : 'text-amber-500'} />
-                      </div>
+          <div className="space-y-4 mb-4">
+
+            {/* Finished goods */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Boxes size={15} className="text-blue-500" />
+                <h2 className="text-sm font-semibold text-gray-700">Finished Goods Inventory</h2>
+              </div>
+              {finishedGoods.length === 0 ? (
+                <p className="text-xs text-gray-400">No production recorded yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {finishedGoods.map(p => (
+                    <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div>
-                        <p className="font-semibold text-gray-800 text-sm">{mat.name}</p>
-                        <p className="text-xs text-gray-400">{mat.unit}</p>
+                        <p className="text-sm font-medium text-gray-800">{p.name}</p>
+                        <p className="text-[10px] text-gray-400">Produced: {fmt(p.produced)} · Ordered: {fmt(p.ordered)} · Delivered: {fmt(p.delivered)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-lg font-bold ${p.inStock > 0 ? 'text-blue-700' : 'text-gray-400'}`}>{fmt(p.inStock)}</p>
+                        <p className="text-[10px] text-gray-400">in stock</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-xl font-bold ${mat.stock > 0 ? 'text-gray-800' : 'text-red-600'}`}>{fmt(mat.stock)}</p>
-                      <p className="text-xs text-gray-400">in stock</p>
-                    </div>
-                  </div>
-                  {isLow && (
-                    <div className="flex items-center gap-1.5 bg-red-50 rounded-lg px-3 py-1.5 mb-2">
-                      <AlertTriangle size={12} className="text-red-500" />
-                      <span className="text-xs text-red-600 font-medium">Low stock — reorder soon</span>
-                    </div>
-                  )}
-                  <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1.5">
-                    <div className={`h-1.5 rounded-full transition-all ${isLow ? 'bg-red-500' : 'bg-amber-500'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-gray-400">
-                    <span>Purchased: {fmt(mat.purchased)}</span>
-                    {mat.used > 0 && <span>Used: {fmt(mat.used)}</span>}
-                    <span>{Math.round(pct)}% remaining</span>
-                  </div>
+                  ))}
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            {/* Raw materials */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <FlaskConical size={15} className="text-amber-500" />
+                <h2 className="text-sm font-semibold text-gray-700">Raw Material Stock</h2>
+              </div>
+              <div className="space-y-3">
+                {stockLevels.map(mat => {
+                  const pct = mat.purchased > 0 ? (mat.stock / mat.purchased) * 100 : 0;
+                  const isLow = pct < 20 && mat.purchased > 0;
+                  return (
+                    <div key={mat.id} className={`rounded-xl border p-3 ${isLow ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{mat.name}</p>
+                          <p className="text-[10px] text-gray-400">{mat.unit} · Spent: {cur(mat.spent)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-lg font-bold ${mat.stock > 0 ? 'text-gray-800' : 'text-red-600'}`}>{fmt(mat.stock)}</p>
+                          <p className="text-[10px] text-gray-400">{mat.unit} left</p>
+                        </div>
+                      </div>
+                      {isLow && (
+                        <div className="flex items-center gap-1.5 bg-red-100 rounded-lg px-2 py-1 mb-1.5">
+                          <AlertTriangle size={11} className="text-red-500" />
+                          <span className="text-[10px] text-red-600 font-medium">Low stock — reorder soon</span>
+                        </div>
+                      )}
+                      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1">
+                        <div className={`h-1.5 rounded-full ${isLow ? 'bg-red-500' : 'bg-amber-500'}`}
+                          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-gray-400">
+                        <span>In: {fmt(mat.purchased)}</span>
+                        {mat.used > 0 && <span>Used: {fmt(mat.used)}</span>}
+                        <span>{Math.round(pct)}% left</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <button onClick={() => navigate('materials')}
               className="w-full py-3 bg-amber-700 text-white font-semibold rounded-xl text-sm">
               + Add Material Purchase
             </button>
+          </div>
+        )}
+
+        {/* ── KPIs SECTION ──────────────────────────────────────── */}
+        {activeSection === 'kpis' && (
+          <div className="space-y-4 mb-4">
+
+            {/* Production KPIs */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Hammer size={15} className="text-amber-600" />
+                <h2 className="text-sm font-semibold text-gray-700">Production Metrics</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <KpiCard label="Total Units Produced" value={fmt(allUnits)} sub="all time" color="blue" />
+                <KpiCard label="Cement Consumed" value={`${fmt(allCement)} bags`} sub="all time" color="orange" />
+                <KpiCard label="Cement / 100 Units" value={`${cementPerHundred} bags`} sub="efficiency ratio" color="amber" />
+                <KpiCard label="Avg Daily Output" value={fmt(Math.round(last7.reduce((s,d)=>s+d.units,0)/7))} sub="last 7 days" color="green" />
+              </div>
+            </div>
+
+            {/* Financial KPIs */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={15} className="text-green-600" />
+                <h2 className="text-sm font-semibold text-gray-700">Financial Metrics</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <KpiCard label="Revenue / Unit" value={`₹${fmt(revenuePerUnit)}`} sub="avg selling price" color="green" />
+                <KpiCard label="Gross Margin" value={`${grossMarginPct}%`} sub={Number(grossMarginPct)>=0?'profit':'loss'} color={Number(grossMarginPct)>=30?'green':'red'} />
+                <KpiCard label="Total Income" value={cur(allIncome)} sub="all receipts" color="green" />
+                <KpiCard label="Total Cost" value={cur(allCost)} sub="mat + labor + exp" color="red" />
+              </div>
+            </div>
+
+            {/* Order KPIs */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Target size={15} className="text-purple-600" />
+                <h2 className="text-sm font-semibold text-gray-700">Order Metrics</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <KpiCard label="Fulfillment Rate" value={`${fulfillmentRate}%`} sub={`${completedOrders}/${totalOrders} orders`} color={Number(fulfillmentRate)>=80?'green':'amber'} />
+                <KpiCard label="Outstanding" value={cur(totalReceivables)} sub="pending receivables" color="red" />
+                <KpiCard label="Material Cost %" value={`${allIncome>0?((allMatCost/allIncome)*100).toFixed(0):0}%`} sub="of revenue" color="amber" />
+                <KpiCard label="Labor Cost %" value={`${allIncome>0?((allLabor/allIncome)*100).toFixed(0):0}%`} sub="of revenue" color="purple" />
+              </div>
+            </div>
           </div>
         )}
 
@@ -352,6 +463,18 @@ export default function Dashboard({ navigate }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, color }) {
+  const bg = { blue:'bg-blue-50', orange:'bg-orange-50', green:'bg-green-50', red:'bg-red-50', amber:'bg-amber-50', purple:'bg-purple-50' }[color] || 'bg-gray-50';
+  const txt = { blue:'text-blue-700', orange:'text-orange-700', green:'text-green-700', red:'text-red-700', amber:'text-amber-700', purple:'text-purple-700' }[color] || 'text-gray-700';
+  return (
+    <div className={`${bg} rounded-xl p-3`}>
+      <p className="text-[10px] text-gray-500 mb-1 leading-tight">{label}</p>
+      <p className={`text-base font-bold ${txt} leading-tight`}>{value}</p>
+      <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>
     </div>
   );
 }

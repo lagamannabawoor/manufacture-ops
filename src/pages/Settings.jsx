@@ -357,6 +357,54 @@ function FirebasePanel({ onClose }) {
             </button>
           </div>
         </div>
+
+        <GithubTokenSection />
+      </div>
+    </div>
+  );
+}
+
+function GithubTokenSection() {
+  const [token, setToken] = useState(() => localStorage.getItem('gh_token') || '');
+  const [repo,  setRepo]  = useState(() => localStorage.getItem('gh_repo')  || 'lagamannabawoor/manufacture-ops');
+  const [saved, setSaved] = useState(false);
+
+  function handleSave() {
+    localStorage.setItem('gh_token', token.trim());
+    localStorage.setItem('gh_repo',  repo.trim());
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <p className="text-sm font-semibold text-gray-800 mb-1">GitHub Token (for On-Demand Reports)</p>
+      <p className="text-xs text-gray-400 mb-3">
+        Lets you trigger email reports instantly from the Reports page.{' '}
+        <a href="https://github.com/settings/tokens/new?scopes=repo&description=UrbanmudReports" target="_blank" rel="noreferrer" className="text-blue-600 underline">
+          Generate token →
+        </a>
+        {' '}(needs <code className="bg-gray-100 px-1 rounded">workflow</code> scope)
+      </p>
+      <div className="space-y-2">
+        <input
+          type="password"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300"
+          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+          value={token}
+          onChange={e => { setToken(e.target.value); setSaved(false); }}
+        />
+        <input
+          type="text"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300"
+          placeholder="owner/repo-name"
+          value={repo}
+          onChange={e => { setRepo(e.target.value); setSaved(false); }}
+        />
+        <button onClick={handleSave}
+          className="w-full py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-lg">
+          {saved ? '✓ Saved!' : 'Save Token'}
+        </button>
       </div>
     </div>
   );

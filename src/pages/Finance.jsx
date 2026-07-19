@@ -7,16 +7,23 @@ import { fmtDate, todayISO } from '../utils/date';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
+function genOrderId() {
+  const now = new Date();
+  const d = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const t = (now.getTime() % 100000).toString().padStart(5, '0');
+  return `ORD-${d}-${t}`;
+}
+
 export default function Finance() {
-  const [tab, setTab] = useState('labor');
+  const [tab, setTab] = useState('orders');
   const tabs = [
-    { id: 'labor', label: 'Labor', icon: Users },
     { id: 'orders', label: 'Orders', icon: ShoppingBag },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
+    { id: 'labor', label: 'Labour', icon: Users },
   ];
   return (
     <div>
-      <Header title="Finance" subtitle="Labor · Orders · Expenses" />
+      <Header title="Finance" subtitle="Orders · Expenses · Labour" />
       <div className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 pt-2 pb-0">
         <div className="flex gap-1">
           {tabs.map(({ id, label, icon: Icon }) => (
@@ -33,9 +40,9 @@ export default function Finance() {
         </div>
       </div>
       <div>
-        {tab === 'labor' && <LaborTab />}
         {tab === 'orders' && <OrdersTab />}
         {tab === 'expenses' && <ExpensesTab />}
+        {tab === 'labor' && <LaborTab />}
       </div>
     </div>
   );
@@ -163,7 +170,7 @@ function OrdersTab() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [orderForm, setOrderForm] = useState({ orderNumber: '', customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' });
+  const [orderForm, setOrderForm] = useState(() => ({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' }));
   const [payForm, setPayForm] = useState({ date: todayISO(), orderId: '', amount: '', direction: 'received', bankAccountId: '', notes: '' });
 
   function setOF(k, v) { setOrderForm(f => ({ ...f, [k]: v })); }
@@ -173,7 +180,7 @@ function OrdersTab() {
     if (!orderForm.customerName || !orderForm.productId || !orderForm.quantity) return alert('Customer, product, and quantity required.');
     const total = Number(orderForm.quantity) * Number(orderForm.unitPrice || 0);
     app.addItem('orders', { ...orderForm, totalAmount: total, status: 'pending' });
-    setOrderForm({ orderNumber: '', customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' });
+    setOrderForm({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' });
     setShowOrderModal(false);
   }
 
@@ -275,7 +282,7 @@ function OrdersTab() {
       {showOrderModal && (
         <Modal title="Add New Order" onClose={() => setShowOrderModal(false)}>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Order Number"><input type="text" className={inputCls} placeholder="ORD-001" value={orderForm.orderNumber} onChange={e => setOF('orderNumber', e.target.value)} /></Field>
+            <Field label="Order ID (auto-generated)"><input type="text" className={inputCls} value={orderForm.orderNumber} onChange={e => setOF('orderNumber', e.target.value)} /></Field>
             <Field label="Delivery Date"><input type="date" className={inputCls} value={orderForm.deliveryDate} onChange={e => setOF('deliveryDate', e.target.value)} /></Field>
           </div>
           <Field label="Customer Name" required><input type="text" className={inputCls} placeholder="Customer name..." value={orderForm.customerName} onChange={e => setOF('customerName', e.target.value)} /></Field>

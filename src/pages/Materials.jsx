@@ -9,22 +9,31 @@ function fmt(n) {
   return new Intl.NumberFormat('en-IN').format(n || 0);
 }
 
-const emptyForm = {
-  date: todayISO(),
-  materialTypeId: '',
-  quantity: '',
-  ratePerUnit: '',
-  totalAmount: '',
-  supplier: '',
-  bankAccountId: '',
-  billNumber: '',
-  notes: '',
-};
+function genBillId() {
+  const now = new Date();
+  const d = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const t = (now.getTime() % 100000).toString().padStart(5, '0');
+  return `BILL-${d}-${t}`;
+}
+
+function freshForm() {
+  return {
+    date: todayISO(),
+    materialTypeId: '',
+    quantity: '',
+    ratePerUnit: '',
+    totalAmount: '',
+    supplier: '',
+    bankAccountId: '',
+    billNumber: genBillId(),
+    notes: '',
+  };
+}
 
 export default function Materials() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(freshForm);
   const [activeTab, setActiveTab] = useState('stock');
 
   function set(k, v) {
@@ -42,7 +51,7 @@ export default function Materials() {
   function save() {
     if (!form.materialTypeId || !form.quantity) return alert('Material type and quantity are required.');
     app.addItem('materialPurchases', form);
-    setForm({ ...emptyForm, date: form.date });
+    setForm({ ...freshForm(), date: form.date });
     setShowModal(false);
   }
 
@@ -242,8 +251,8 @@ export default function Materials() {
             <input type="text" className={inputCls} placeholder="Supplier name..." value={form.supplier}
               onChange={e => set('supplier', e.target.value)} />
           </Field>
-          <Field label="Bill Number">
-            <input type="text" className={inputCls} placeholder="Bill/Invoice #" value={form.billNumber}
+          <Field label="Bill Number (auto-generated)">
+            <input type="text" className={inputCls} value={form.billNumber}
               onChange={e => set('billNumber', e.target.value)} />
           </Field>
           <Field label="Payment Account">
