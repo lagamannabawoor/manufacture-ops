@@ -147,13 +147,16 @@ function buildExcel(today, { productionEntries, allMatPurchases, allOrderPayment
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(outgoingRows), 'Outgoing');
 
   // Sheet 4: Stock
+  const cementMatId = (materialTypes.find(m => m.id === 'm1')
+    || materialTypes.find(m => m.name?.toLowerCase().includes('cement'))
+    || materialTypes.find(m => m.unit === 'bags'))?.id;
   const stockSheet = [
     ['Material', 'Unit', 'Total Purchased (All Time)', 'Total Used', 'Current Stock'],
     ...materialTypes.map(mat => {
       const purchased = allMatPurchases
         .filter(p => p.materialTypeId === mat.id)
         .reduce((s, p) => s + num(p.quantity), 0);
-      const used = mat.id === 'm1'
+      const used = mat.id === cementMatId
         ? productionEntries.reduce((s, e) => s + num(e.cementBags), 0)
         : 0;
       return [mat.name, mat.unit, purchased, used, purchased - used];
@@ -222,11 +225,14 @@ async function main() {
   const netPL         = totalIncome - totalOut;
 
   // ── Stock (all-time) ──────────────────────────────────────────────────
+  const cementIdForEmail = (materialTypes.find(m => m.id === 'm1')
+    || materialTypes.find(m => m.name?.toLowerCase().includes('cement'))
+    || materialTypes.find(m => m.unit === 'bags'))?.id;
   const stockData = materialTypes.map(mat => {
     const purchased = allMatPurchases
       .filter(p => p.materialTypeId === mat.id)
       .reduce((s,p) => s + num(p.quantity), 0);
-    const used = mat.id === 'm1'
+    const used = mat.id === cementIdForEmail
       ? allProdEntries.reduce((s,e) => s + num(e.cementBags), 0)
       : 0;
     return { name: mat.name, unit: mat.unit, purchased, used, stock: purchased - used };

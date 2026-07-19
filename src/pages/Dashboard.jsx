@@ -27,10 +27,16 @@ export default function Dashboard({ navigate }) {
   const todayOut  = todayLaborCost + todayExpenses + todayMaterialCost;
   const netToday  = todayIncome - todayOut;
 
+  // ── Cement material: find by id 'm1', or name contains 'cement', or first 'bags' unit
+  const cementMat = app.materialTypes.find(m => m.id === 'm1')
+    || app.materialTypes.find(m => m.name?.toLowerCase().includes('cement'))
+    || app.materialTypes.find(m => m.unit === 'bags');
+  const cementMatId = cementMat?.id;
+
   // ── Stock levels ──────────────────────────────────────────────────────
   const stockLevels = app.materialTypes.map(mat => {
     const purchased = app.materialPurchases.filter(p => p.materialTypeId === mat.id).reduce((s, p) => s + Number(p.quantity || 0), 0);
-    const used = mat.id === 'm1' ? app.productionEntries.reduce((s, e) => s + Number(e.cementBags || 0), 0) : 0;
+    const used = mat.id === cementMatId ? app.productionEntries.reduce((s, e) => s + Number(e.cementBags || 0), 0) : 0;
     const spent  = app.materialPurchases.filter(p => p.materialTypeId === mat.id).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
     return { ...mat, purchased, used, stock: purchased - used, spent };
   });
