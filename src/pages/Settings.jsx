@@ -7,7 +7,6 @@ import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCa
 
 export default function Settings() {
   const { currentUser, logout } = useApp();
-  const isAdmin = currentUser?.role === 'admin';
   const isSuperAdmin = currentUser?.username === 'lbawoor';
   const [section, setSection] = useState(null);
   const [showUsers, setShowUsers] = useState(false);
@@ -43,9 +42,9 @@ export default function Settings() {
             </button>
           ))}
         </div>
-        <FirebaseSection />
-        {isAdmin && (
+        {isSuperAdmin && (
           <>
+            <FirebaseSection />
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
               <button onClick={() => setShowUsers(true)} className="w-full flex items-center justify-between px-4 py-4">
                 <div className="flex items-center gap-3">
@@ -61,19 +60,17 @@ export default function Settings() {
                 </div>
                 <ChevronRight size={16} className="text-gray-300" />
               </button>
-              {isSuperAdmin && (
-                <button onClick={() => setShowReportEmails(true)} className="w-full flex items-center justify-between px-4 py-4 border-t border-gray-50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sky-500 bg-sky-50"><Mail size={18} /></div>
-                    <span className="text-sm font-medium text-gray-700">Report Email Recipients</span>
-                  </div>
-                  <ChevronRight size={16} className="text-gray-300" />
-                </button>
-              )}
+              <button onClick={() => setShowReportEmails(true)} className="w-full flex items-center justify-between px-4 py-4 border-t border-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sky-500 bg-sky-50"><Mail size={18} /></div>
+                  <span className="text-sm font-medium text-gray-700">Report Email Recipients</span>
+                </div>
+                <ChevronRight size={16} className="text-gray-300" />
+              </button>
             </div>
+            <ResetSection />
           </>
         )}
-        <ResetSection />
         <button onClick={logout} className="w-full flex items-center justify-center gap-2 mt-4 py-3 bg-white border border-red-200 text-red-600 font-semibold rounded-xl text-sm shadow-sm">
           <LogOut size={16} /> Sign Out ({currentUser?.name})
         </button>
