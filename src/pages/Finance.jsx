@@ -3,8 +3,8 @@ import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import { Plus, Trash2, Users, ShoppingBag, Receipt, ChevronRight, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { fmtDate, todayISO } from '../utils/date';
 
-function today() { return new Date().toISOString().slice(0, 10); }
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
 export default function Finance() {
@@ -45,7 +45,7 @@ export default function Finance() {
 function LaborTab() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ date: today(), laborGroupId: '', amount: '', paymentType: 'regular', bankAccountId: '', notes: '' });
+  const [form, setForm] = useState({ date: todayISO(), laborGroupId: '', amount: '', paymentType: 'regular', bankAccountId: '', notes: '' });
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
   function save() {
     if (!form.laborGroupId || !form.amount) return alert('Group and amount required.');
@@ -111,7 +111,7 @@ function LaborTab() {
                       {p.paymentType}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400">{p.date} {account ? `· ${account.name}` : ''}</p>
+                  <p className="text-xs text-gray-400">{fmtDate(p.date)} {account ? `· ${account.name}` : ''}</p>
                   {p.notes && <p className="text-xs text-gray-500 mt-1">{p.notes}</p>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ function OrdersTab() {
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState({ orderNumber: '', customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' });
-  const [payForm, setPayForm] = useState({ date: today(), orderId: '', amount: '', direction: 'received', bankAccountId: '', notes: '' });
+  const [payForm, setPayForm] = useState({ date: todayISO(), orderId: '', amount: '', direction: 'received', bankAccountId: '', notes: '' });
 
   function setOF(k, v) { setOrderForm(f => ({ ...f, [k]: v })); }
   function setPF(k, v) { setPayForm(f => ({ ...f, [k]: v })); }
@@ -258,7 +258,7 @@ function OrdersTab() {
                   <div className="mt-3 pt-2 border-t border-gray-50 space-y-1">
                     {payments.slice(-3).map(p => (
                       <div key={p.id} className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">{p.date}</span>
+                        <span className="text-gray-500">{fmtDate(p.date)}</span>
                         <span className={p.direction === 'received' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
                           {p.direction === 'received' ? '+' : '-'}₹{fmt(p.amount)}
                         </span>
@@ -339,7 +339,7 @@ function OrdersTab() {
 function ExpensesTab() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ date: today(), categoryId: '', description: '', amount: '', bankAccountId: '', hasGST: false, gstAmount: '', notes: '' });
+  const [form, setForm] = useState({ date: todayISO(), categoryId: '', description: '', amount: '', bankAccountId: '', hasGST: false, gstAmount: '', notes: '' });
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
   function save() {
     if (!form.categoryId || !form.amount) return alert('Category and amount required.');
@@ -349,7 +349,7 @@ function ExpensesTab() {
   }
 
   const sorted = [...app.expenses].sort((a, b) => b.date.localeCompare(a.date));
-  const totalToday = app.expenses.filter(e => e.date === today()).reduce((s, e) => s + Number(e.amount || 0), 0);
+  const totalToday = app.expenses.filter(e => e.date === todayISO()).reduce((s, e) => s + Number(e.amount || 0), 0);
 
   return (
     <div className="px-4 py-4">
@@ -378,7 +378,7 @@ function ExpensesTab() {
                     {e.hasGST && <span className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full">GST</span>}
                   </div>
                   <p className="text-sm font-medium text-gray-800">{e.description || cat?.name}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{e.date} {account ? `· ${account.name}` : ''}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(e.date)} {account ? `· ${account.name}` : ''}</p>
                   {e.hasGST && e.gstAmount && <p className="text-xs text-purple-600 mt-0.5">GST: ₹{fmt(e.gstAmount)}</p>}
                 </div>
                 <div className="flex items-center gap-2">

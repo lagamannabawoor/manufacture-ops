@@ -4,10 +4,7 @@ import {
   TrendingUp, TrendingDown, Package, Layers, DollarSign,
   Hammer, ChevronRight, CalendarDays, Building2
 } from 'lucide-react';
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { fmtDate, todayISO } from '../utils/date';
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN').format(n || 0);
@@ -15,7 +12,7 @@ function fmt(n) {
 
 export default function Dashboard({ navigate }) {
   const app = useApp();
-  const t = today();
+  const t = todayISO();
 
   const todayProduction = app.productionEntries.filter(e => e.date === t);
   const todayCement = todayProduction.reduce((s, e) => s + Number(e.cementBags || 0), 0);
@@ -53,8 +50,10 @@ export default function Dashboard({ navigate }) {
 
   const recentProduction = app.productionEntries.slice(-5).reverse();
 
-  const dateStr = new Date().toLocaleDateString('en-IN', {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    timeZone: 'Asia/Kolkata',
   });
 
   return (
@@ -158,7 +157,7 @@ export default function Dashboard({ navigate }) {
                   <div key={entry.id} className="px-4 py-3 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{product?.name || 'Unknown'}</p>
-                      <p className="text-xs text-gray-400">{entry.date} • {factory?.name || ''}</p>
+                      <p className="text-xs text-gray-400">{fmtDate(entry.date)} • {factory?.name || ''}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-gray-800">{fmt(entry.quantity)} pcs</p>

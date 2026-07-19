@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import { BarChart2, TrendingUp, TrendingDown, Package, Factory, Layers } from 'lucide-react';
+import { fmtDate } from '../utils/date';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
@@ -108,7 +109,7 @@ export default function Reports() {
             </div>
           )}
           {from && to && from !== to && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{from} → {to}</p>
+            <p className="text-xs text-gray-400 mt-2 text-center">{fmtDate(from)} → {fmtDate(to)}</p>
           )}
         </div>
 

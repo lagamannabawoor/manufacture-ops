@@ -3,11 +3,11 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import { Plus, Trash2, Factory, Filter, CheckCircle, XCircle, Clock, Send } from 'lucide-react';
+import { fmtDate, todayISO } from '../utils/date';
 
-function today() { return new Date().toISOString().slice(0, 10); }
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
-const emptyForm = { date: today(), productId: '', factoryId: '', quantity: '', cementBags: '', notes: '' };
+const emptyForm = { date: todayISO(), productId: '', factoryId: '', quantity: '', cementBags: '', notes: '' };
 
 export default function Production() {
   const app = useApp();
@@ -19,7 +19,7 @@ export default function Production() {
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [filterDate, setFilterDate] = useState(today());
+  const [filterDate, setFilterDate] = useState(todayISO());
   const [filterCat, setFilterCat] = useState('');
   const [filterFactory, setFilterFactory] = useState('');
 
@@ -59,9 +59,9 @@ export default function Production() {
       <div>
         <Header
           title="Production"
-          subtitle={`My submissions — ${today()}`}
+          subtitle={`My submissions — ${fmtDate(todayISO())}`}
           action={
-            <button onClick={() => { setForm({ ...emptyForm, date: today() }); setShowModal(true); }}
+            <button onClick={() => { setForm({ ...emptyForm, date: todayISO() }); setShowModal(true); }}
               className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2">
               <Plus size={20} />
             </button>
@@ -84,7 +84,7 @@ export default function Production() {
                   <span className="text-xs font-semibold text-amber-600">Pending Approval</span>
                 </div>
                 <p className="font-semibold text-gray-800">{product?.name || 'Unknown'}</p>
-                <p className="text-xs text-gray-400">{p.date} · {p.quantity} units · {p.cementBags || 0} bags</p>
+                <p className="text-xs text-gray-400">{fmtDate(p.date)} · {p.quantity} units · {p.cementBags || 0} bags</p>
                 {p.notes && <p className="text-xs text-gray-500 mt-1 italic">{p.notes}</p>}
               </div>
             );
@@ -161,7 +161,7 @@ export default function Production() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-700">{product?.name || 'Unknown'}</p>
-                        <p className="text-xs text-gray-400">{p.date} · {fmt(p.quantity)} units · {p.cementBags || 0} bags cement</p>
+                        <p className="text-xs text-gray-400">{fmtDate(p.date)} · {fmt(p.quantity)} units · {p.cementBags || 0} bags cement</p>
                         <p className="text-xs text-amber-600 mt-0.5">By: {p.submittedByName} · {factory?.name || ''}</p>
                         {p.notes && <p className="text-xs text-gray-500 italic mt-0.5">{p.notes}</p>}
                       </div>
@@ -247,7 +247,7 @@ export default function Production() {
                         )}
                       </div>
                       <p className="font-semibold text-gray-800">{product?.name || 'Unknown'}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{entry.date}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.date)}</p>
                       {entry.notes && <p className="text-xs text-gray-500 mt-1 italic">{entry.notes}</p>}
                     </div>
                     <div className="text-right ml-3">

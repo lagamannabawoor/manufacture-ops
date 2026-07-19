@@ -3,19 +3,17 @@ import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import { Plus, Trash2, Package, TrendingDown } from 'lucide-react';
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { fmtDate, todayISO } from '../utils/date';
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN').format(n || 0);
 }
 
 const emptyForm = {
-  date: today(),
+  date: todayISO(),
   materialTypeId: '',
   quantity: '',
+  ratePerUnit: '',
   totalAmount: '',
   supplier: '',
   bankAccountId: '',
@@ -30,7 +28,15 @@ export default function Materials() {
   const [activeTab, setActiveTab] = useState('stock');
 
   function set(k, v) {
-    setForm(f => ({ ...f, [k]: v }));
+    setForm(f => {
+      const updated = { ...f, [k]: v };
+      if (k === 'quantity' || k === 'ratePerUnit') {
+        const qty = parseFloat(k === 'quantity' ? v : f.quantity) || 0;
+        const rate = parseFloat(k === 'ratePerUnit' ? v : f.ratePerUnit) || 0;
+        if (qty > 0 && rate > 0) updated.totalAmount = String(qty * rate);
+      }
+      return updated;
+    });
   }
 
   function save() {
@@ -166,7 +172,7 @@ export default function Materials() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="font-semibold text-gray-800">{mat?.name || 'Unknown'}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{p.date}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{fmtDate(p.date)}</p>
                           {p.supplier && <p className="text-xs text-gray-500 mt-1">Supplier: {p.supplier}</p>}
                           {p.billNumber && <p className="text-xs text-gray-500">Bill #: {p.billNumber}</p>}
                           {account && <p className="text-xs text-gray-500">Via: {account.name}</p>}
@@ -174,6 +180,7 @@ export default function Materials() {
                         <div className="text-right ml-3">
                           <p className="text-lg font-bold text-gray-800">{fmt(p.quantity)}</p>
                           <p className="text-xs text-gray-400">{mat?.unit}</p>
+                          {p.ratePerUnit && <p className="text-xs text-gray-400">@ ₹{fmt(p.ratePerUnit)}/{app.materialTypes.find(m=>m.id===p.materialTypeId)?.unit||'unit'}</p>}
                           {p.totalAmount && (
                             <p className="text-sm font-semibold text-red-600 mt-1">₹{fmt(p.totalAmount)}</p>
                           )}
@@ -209,16 +216,28 @@ export default function Materials() {
               ))}
             </select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Quantity" required>
-              <input type="number" className={inputCls} placeholder="0" value={form.quantity}
-                onChange={e => set('quantity', e.target.value)} min="0" />
-            </Field>
-            <Field label="Total Amount (₹)">
-              <input type="number" className={inputCls} placeholder="0" value={form.totalAmount}
-                onChange={e => set('totalAmount', e.target.value)} min="0" />
-            </Field>
-          </div>
+          {(() => {
+            const mat = app.materialTypes.find(m => m.id === form.materialTypeId);
+            const unitLabel = mat?.unit || 'unit';
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Quantity" required>
+                    <input type="number" className={inputCls} placeholder="0" value={form.quantity}
+                      onChange={e => set('quantity', e.target.value)} min="0" />
+                  </Field>
+                  <Field label={`Rate per ${unitLabel} (₹)`}>
+                    <input type="number" className={inputCls} placeholder="0" value={form.ratePerUnit}
+                      onChange={e => set('ratePerUnit', e.target.value)} min="0" />
+                  </Field>
+                </div>
+                <Field label="Total Amount (₹) — auto-calculated">
+                  <input type="number" className={inputCls} placeholder="Auto-filled or enter manually" value={form.totalAmount}
+                    onChange={e => set('totalAmount', e.target.value)} min="0" />
+                </Field>
+              </>
+            );
+          })()}
           <Field label="Supplier">
             <input type="text" className={inputCls} placeholder="Supplier name..." value={form.supplier}
               onChange={e => set('supplier', e.target.value)} />

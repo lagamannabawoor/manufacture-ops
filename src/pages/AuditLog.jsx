@@ -14,7 +14,12 @@ const CATEGORY_COLORS = {
 function formatTime(iso) {
   try {
     const d = new Date(iso);
-    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
   } catch { return iso; }
 }
 
@@ -30,7 +35,7 @@ export default function AuditLog({ onBack }) {
     .filter(e => !search || e.description?.toLowerCase().includes(search.toLowerCase()) || e.userName?.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+    <div className="fixed inset-0 z-[150] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
       <Header title="Audit Log" subtitle={`${auditLog.length} total events`} onBack={onBack} />
       <div className="px-4 pt-4 space-y-2 shrink-0">
         <div className="relative">
