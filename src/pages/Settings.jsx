@@ -60,7 +60,6 @@ export default function Settings() {
                 <ChevronRight size={16} className="text-gray-300" />
               </button>
             </div>
-            <BackupSection />
           </>
         )}
         <ResetSection />
