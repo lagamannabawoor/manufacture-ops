@@ -22,12 +22,12 @@ let _unsubscribers = [];
 
 // ── Default config (Urbanmud Firebase project) ─────────────────────────────
 const DEFAULT_CONFIG = {
-  apiKey:            "AIzaSyAQJpBkkUOqJkRYrPNuE6cfmfKhxm45m1I",
-  authDomain:        "urbanmud-930d2.firebaseapp.com",
-  projectId:         "urbanmud-930d2",
-  storageBucket:     "urbanmud-930d2.firebasestorage.app",
-  messagingSenderId: "809973738121",
-  appId:             "1:809973738121:web:f23d7e2def53fac1aff458",
+  apiKey:            "AIzaSyCtrG0_JjMltsthWQXZ6hd2er8Hc4T8odQ",
+  authDomain:        "urbanmud-bricks-and-bloc-15aec.firebaseapp.com",
+  projectId:         "urbanmud-bricks-and-bloc-15aec",
+  storageBucket:     "urbanmud-bricks-and-bloc-15aec.firebasestorage.app",
+  messagingSenderId: "55120524689",
+  appId:             "1:55120524689:web:24ac9cbe5d2597cd4d5630",
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────
