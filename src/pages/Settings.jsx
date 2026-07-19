@@ -3,7 +3,7 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
-import { Plus, Trash2, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail } from 'lucide-react';
+import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail } from 'lucide-react';
 
 export default function Settings() {
   const { currentUser, logout } = useApp();
@@ -145,6 +145,8 @@ function SectionEditor({ sectionId, label, onClose }) {
 
   const config = configs[sectionId];
 
+  const [editingItem, setEditingItem] = useState(null);
+
   return (
     <div className="fixed inset-0 z-[150] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
       <Header
@@ -166,12 +168,20 @@ function SectionEditor({ sectionId, label, onClose }) {
             {items.map((item, i) => (
               <div key={item.id} className={`flex items-center justify-between px-4 py-3.5 ${i > 0 ? 'border-t border-gray-50' : ''}`}>
                 <p className="text-sm text-gray-700">{config.display(item)}</p>
-                <button
-                  onClick={() => { if (confirm(`Delete "${config.display(item)}"?`)) app.deleteItem(sectionId, item.id); }}
-                  className="text-gray-300 hover:text-red-400 p-1"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setEditingItem(item)}
+                    className="text-gray-300 hover:text-amber-500 p-1"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Delete "${config.display(item)}"?`)) app.deleteItem(sectionId, item.id); }}
+                    className="text-gray-300 hover:text-red-400 p-1"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -185,14 +195,23 @@ function SectionEditor({ sectionId, label, onClose }) {
           onSave={data => { app.addItem(sectionId, data); setShowAdd(false); }}
         />
       )}
+      {editingItem && (
+        <AddItemModal
+          title={`Edit ${label}`}
+          fields={config.fields}
+          initialValues={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={data => { app.updateItem(sectionId, editingItem.id, data); setEditingItem(null); }}
+        />
+      )}
     </div>
   );
 }
 
-function AddItemModal({ title, fields, onClose, onSave }) {
+function AddItemModal({ title, fields, initialValues, onClose, onSave }) {
   const [form, setForm] = useState(() => {
     const f = {};
-    fields.forEach(field => { f[field.key] = field.default || ''; });
+    fields.forEach(field => { f[field.key] = initialValues?.[field.key] ?? field.default ?? ''; });
     return f;
   });
 
