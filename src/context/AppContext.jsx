@@ -8,7 +8,7 @@ import {
   loadFromFirestore, saveToFirestore, subscribeToChanges, unsubscribeAll, KEY_TO_DOC,
 } from '../services/firestoreDb';
 
-const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '761810394116-9vt8ratsjnmfn27m0jld1jgpc0ioahss.apps.googleusercontent.com';
 
 const STORAGE_KEY = 'mfg_ops_data';
 
