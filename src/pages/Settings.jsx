@@ -138,7 +138,7 @@ function SectionEditor({ sectionId, label, onClose }) {
   const config = configs[sectionId];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+    <div className="fixed inset-0 z-[150] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
       <Header
         title={label}
         onBack={onClose}
@@ -476,7 +476,7 @@ function UserManagementPanel({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+    <div className="fixed inset-0 z-[150] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
       <Header title="User Management" onBack={onClose} action={
         <button onClick={() => setShowAdd(true)} className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"><Plus size={20} /></button>
       } />
