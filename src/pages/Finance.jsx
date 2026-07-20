@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Users, ShoppingBag, Receipt, ArrowDownCircle, ArrowUpCircle, Download, Share2, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Filter, Truck, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, Users, ShoppingBag, Receipt, ArrowDownCircle, ArrowUpCircle, Download, Share2, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Filter, Truck, ShieldCheck, FileText } from 'lucide-react';
 import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -301,6 +301,130 @@ function buildExpenseURDPDF(expense, meta, ci) {
   return pdf;
 }
 
+function buildConsolidatedOrderPDF(order, dispatches, payments, product, bankAccounts, ci) {
+  const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
+  const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
+  const coGSTIN   = ci?.gstin   || '';
+  const coPhone   = ci?.phone   || '';
+  const A  = [146,64,14], DK = [31,41,55], MD = [107,114,128], LT = [253,230,138];
+  const W = 210, H = 297, ML = 14, MR = 14, CW = W-ML-MR;
+  const pdf = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  let y = ML;
+  const needPage = (h) => { if (y+h > H-18) { pdf.addPage(); y = ML; } };
+  const today = new Date().toISOString().slice(0,10);
+  const invoiceNo = `CINV-${(order.id||'').slice(-8).toUpperCase()}`;
+  const unitPrice = Number(order.unitPrice||0);
+  const receivedPayments = payments.filter(p => p.direction==='received');
+  const totalDispatched = dispatches.reduce((s,d)=>s+Number(d.quantity||0),0);
+  const totalReceived   = receivedPayments.reduce((s,p)=>s+Number(p.amount||0),0);
+  const orderValue = Number(order.totalAmount||0);
+  const balance = orderValue - totalReceived;
+
+  // Header
+  let ry = y+7;
+  pdf.setFontSize(16); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A); pdf.text(coName.toUpperCase(), ML, y+7); y+=11;
+  pdf.setFontSize(8.5); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  coAddress.split('\n').forEach(l => { pdf.text(l, ML, y); y+=4; });
+  if (coPhone) { pdf.text('Ph: '+coPhone, ML, y); y+=4; }
+  if (coGSTIN) { pdf.setFont('helvetica','bold'); pdf.text('GSTIN: '+coGSTIN, ML, y); pdf.setFont('helvetica','normal'); y+=4; }
+
+  pdf.setFontSize(14); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text('DELIVERY INVOICE', W-MR, ry, {align:'right'}); ry+=8;
+  pdf.setFontSize(9); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A); pdf.text(invoiceNo, W-MR, ry, {align:'right'}); ry+=6;
+  pdf.setFontSize(8); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  pdf.text('Invoice Date: '+today, W-MR, ry, {align:'right'}); ry+=5;
+  pdf.text('Order Ref: '+(order.orderNumber||''), W-MR, ry, {align:'right'}); ry+=5;
+  if (order.deliveryDate) { pdf.text('Delivery Date: '+order.deliveryDate, W-MR, ry, {align:'right'}); ry+=5; }
+
+  y = Math.max(y, ry)+4;
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.6); pdf.line(ML, y, W-MR, y); y+=7;
+
+  // Bill To
+  pdf.setFontSize(7); pdf.setFont('helvetica','bold'); pdf.setTextColor(...MD); pdf.text('BILL TO', ML, y); y+=4.5;
+  pdf.setFontSize(10); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text(order.customerName||'—', ML, y); y+=5;
+  pdf.setFontSize(8.5); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  if (order.customerPhone) { pdf.text(order.customerPhone, ML, y); y+=4; }
+  y+=5;
+
+  // Dispatch table
+  needPage(30);
+  pdf.setFontSize(9); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text('DELIVERY DETAILS', ML, y); y+=5;
+  const dispRows = dispatches.map((d,i) => [
+    i+1, d.date, product?.name||'Product', product?.unit||'units',
+    fmt(Number(d.quantity||0)), rp(unitPrice), rp(Number(d.quantity||0)*unitPrice)
+  ]);
+  autoTable(pdf, {
+    startY: y, margin:{left:ML,right:MR},
+    head: [['#','Date','Description','Unit','Qty','Rate','Amount']],
+    body: dispRows,
+    foot: [['','','Total Delivered','',fmt(totalDispatched),'',rp(totalDispatched*unitPrice)]],
+    headStyles: {fillColor:A, textColor:[255,255,255], fontSize:9, fontStyle:'bold', cellPadding:3.5},
+    bodyStyles: {fontSize:8.5, textColor:DK, cellPadding:3},
+    footStyles: {fillColor:[254,243,199], textColor:A, fontStyle:'bold', fontSize:9},
+    alternateRowStyles: {fillColor:[255,251,235]},
+    columnStyles: {0:{cellWidth:8,halign:'center'},1:{cellWidth:22},3:{cellWidth:14,halign:'center'},4:{cellWidth:16,halign:'right'},5:{cellWidth:24,halign:'right'},6:{cellWidth:28,halign:'right'}},
+  });
+  y = pdf.lastAutoTable.finalY + 8;
+
+  // Payment table
+  if (receivedPayments.length > 0) {
+    needPage(30);
+    pdf.setFontSize(9); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text('PAYMENT HISTORY', ML, y); y+=5;
+    const payRows = receivedPayments.map((p,i) => {
+      const acc = bankAccounts.find(b=>b.id===p.bankAccountId);
+      return [i+1, p.date, acc?.name||'—', rp(Number(p.amount||0)), p.notes||''];
+    });
+    autoTable(pdf, {
+      startY: y, margin:{left:ML,right:MR},
+      head: [['#','Date','Mode / Account','Amount Received','Notes']],
+      body: payRows,
+      foot: [['','','Total Received', rp(totalReceived),'']],
+      headStyles: {fillColor:[22,163,74], textColor:[255,255,255], fontSize:9, fontStyle:'bold', cellPadding:3.5},
+      bodyStyles: {fontSize:8.5, textColor:DK, cellPadding:3},
+      footStyles: {fillColor:[220,252,231], textColor:[22,163,74], fontStyle:'bold', fontSize:9},
+      alternateRowStyles: {fillColor:[240,253,244]},
+      columnStyles: {0:{cellWidth:8,halign:'center'},1:{cellWidth:24},3:{cellWidth:32,halign:'right',fontStyle:'bold'}},
+    });
+    y = pdf.lastAutoTable.finalY + 8;
+  }
+
+  // Financial summary box
+  needPage(55);
+  pdf.setFontSize(9); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text('FINANCIAL SUMMARY', ML, y); y+=5;
+  pdf.setFillColor(255,251,235); pdf.roundedRect(ML, y, CW, 30, 2, 2, 'F');
+  pdf.setDrawColor(...LT); pdf.setLineWidth(0.3); pdf.roundedRect(ML, y, CW, 30, 2, 2, 'D');
+  const srow = (lbl, val, col) => {
+    pdf.setFontSize(8.5); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD); pdf.text(lbl, ML+4, y+5);
+    pdf.setFont('helvetica','bold'); pdf.setTextColor(...(col||DK)); pdf.text(val, W-MR-4, y+5, {align:'right'}); y+=7;
+  };
+  y+=2; srow('Order Value:', rp(orderValue)); srow('Total Dispatched:', fmt(totalDispatched)+' '+(product?.unit||'units'));
+  srow('Total Payments Received:', rp(totalReceived), [22,163,74]);
+  srow('Balance Due:', rp(Math.max(0,balance)), balance<=0?[22,163,74]:[220,38,38]);
+  y+=4;
+  needPage(16);
+  if (balance<=0) {
+    pdf.setFillColor(220,252,231); pdf.roundedRect(ML, y, CW, 12, 2, 2, 'F');
+    pdf.setFontSize(11); pdf.setFont('helvetica','bold'); pdf.setTextColor(22,163,74);
+    pdf.text('PAID IN FULL', W/2, y+8, {align:'center'});
+  } else {
+    pdf.setFillColor(254,226,226); pdf.roundedRect(ML, y, CW, 12, 2, 2, 'F');
+    pdf.setFontSize(10); pdf.setFont('helvetica','bold'); pdf.setTextColor(220,38,38);
+    pdf.text('BALANCE DUE: '+rp(balance), W/2, y+8, {align:'center'});
+  }
+  y+=18;
+
+  // Signatory
+  needPage(38);
+  y+=5; pdf.setDrawColor(...LT); pdf.setLineWidth(0.3); pdf.line(ML,y,W-MR,y); y+=15;
+  const sw=CW/3; const sx=W-MR-sw;
+  if (ci?.signature) { try { pdf.addImage(ci.signature,'PNG',sx+4,y-14,sw-8,12); } catch(e){} }
+  pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(sx,y,W-MR,y);
+  pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text('Authorised Signatory',sx+sw/2,y+5,{align:'center'});
+  pdf.setFontSize(7); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD); pdf.text('For '+coName,sx+sw/2,y+9,{align:'center'});
+  const tp=pdf.internal.getNumberOfPages();
+  for(let p=1;p<=tp;p++) { pdf.setPage(p); pdf.setFontSize(7); pdf.setFont('helvetica','normal'); pdf.setTextColor(...LT); pdf.text('Generated by Urbanmud Manufacturing Ops | Page '+p+' of '+tp, W/2, H-8, {align:'center'}); }
+  return pdf;
+}
+
 function genOrderId() {
   const now = new Date();
   const d = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -580,6 +704,8 @@ function OrdersTab() {
 
   const [viewing, setViewing] = useState(null);
   const [vBusy, setVBusy] = useState(false);
+  const [viewingConsolidated, setViewingConsolidated] = useState(null);
+  const [consolidatedBusy, setConsolidatedBusy] = useState(false);
   const sorted = [...app.orders]
     .filter(o => {
       const d = o.deliveryDate || new Date(parseInt(o.id)).toISOString().slice(0,10);
@@ -686,6 +812,16 @@ function OrdersTab() {
                     </div>
                   )}
                 </div>
+
+                {/* Consolidated Bill button — completed orders only */}
+                {effectiveStatus === 'completed' && (
+                  <button
+                    onClick={() => setViewingConsolidated({ order, dispatches, payments, product })}
+                    className="w-full flex items-center justify-center gap-1.5 bg-amber-700 text-white text-xs font-semibold px-3 py-2 rounded-lg mb-2 active:scale-95 transition-transform"
+                  >
+                    <FileText size={13} /> Consolidated Delivery Invoice
+                  </button>
+                )}
 
                 {/* Action buttons */}
                 <div className="flex gap-2 mb-2">
@@ -857,6 +993,154 @@ function OrdersTab() {
           <SaveBtn onClick={saveDispatch} label="Save Dispatch" />
         </Modal>
       )}
+
+      {viewingConsolidated && (() => {
+        const { order: co, dispatches: cd, payments: cp, product: cprod } = viewingConsolidated;
+        const receivedPmts = cp.filter(p => p.direction === 'received');
+        const totalDisp    = cd.reduce((s, d) => s + Number(d.quantity || 0), 0);
+        const totalRcvd    = receivedPmts.reduce((s, p) => s + Number(p.amount || 0), 0);
+        const orderVal     = Number(co.totalAmount || 0);
+        const bal          = orderVal - totalRcvd;
+        const unitPrice    = Number(co.unitPrice || 0);
+        const invoiceNo    = `CINV-${(co.id || '').slice(-8).toUpperCase()}`;
+        const mkPdf = () => buildConsolidatedOrderPDF(co, cd, cp, cprod, app.bankAccounts, app.companyInfo || {});
+        const fname = `${invoiceNo}-${co.customerName || 'order'}.pdf`;
+        return (
+          <ReceiptViewer
+            title={`Delivery Invoice — ${co.customerName}`}
+            busy={consolidatedBusy}
+            onClose={() => setViewingConsolidated(null)}
+            onDownload={async () => { setConsolidatedBusy(true); try { await shareOrDownloadPDF(mkPdf(), fname); } finally { setConsolidatedBusy(false); } }}
+            onShare={async () => { setConsolidatedBusy(true); try { await shareOrDownloadPDF(mkPdf(), fname); } finally { setConsolidatedBusy(false); } }}
+          >
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-3">
+              {/* Letterhead */}
+              <div className="bg-amber-800 px-4 pt-4 pb-3">
+                <p className="font-bold text-white text-base">{(app.companyInfo?.name || 'UrbanMud Bricks and Blocks').toUpperCase()}</p>
+                <p className="text-amber-200 text-xs mt-0.5 whitespace-pre-line">{app.companyInfo?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114'}</p>
+              </div>
+              {/* Doc meta */}
+              <div className="flex justify-between items-start px-4 py-3 border-b border-gray-100 bg-amber-50">
+                <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase">Delivery Invoice</p>
+                  <p className="text-sm font-bold text-amber-700">{invoiceNo}</p>
+                  <p className="text-xs text-gray-500">Order Ref: {co.orderNumber}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">Date: {new Date().toISOString().slice(0,10)}</p>
+                  {co.deliveryDate && <p className="text-xs text-gray-500">Delivery: {fmtDate(co.deliveryDate)}</p>}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">COMPLETED</span>
+                </div>
+              </div>
+              {/* Bill To */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Bill To</p>
+                <p className="text-sm font-bold text-gray-800">{co.customerName}</p>
+                {co.customerPhone && <p className="text-xs text-gray-500">{co.customerPhone}</p>}
+              </div>
+              {/* Dispatch table */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-xs font-bold text-gray-700 mb-2">DELIVERY DETAILS</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-amber-700 text-white">
+                        <th className="p-1.5 text-left">#</th>
+                        <th className="p-1.5 text-left">Date</th>
+                        <th className="p-1.5 text-left">Item</th>
+                        <th className="p-1.5 text-right">Qty</th>
+                        <th className="p-1.5 text-right">Rate</th>
+                        <th className="p-1.5 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cd.map((d, i) => (
+                        <tr key={d.id} className={i % 2 === 0 ? 'bg-white' : 'bg-amber-50/30'}>
+                          <td className="p-1.5 text-gray-400">{i+1}</td>
+                          <td className="p-1.5 text-gray-600">{fmtDate(d.date)}</td>
+                          <td className="p-1.5 font-medium text-gray-800">{cprod?.name || 'Product'}<span className="text-gray-400 ml-1">({cprod?.unit || 'units'})</span></td>
+                          <td className="p-1.5 text-right font-semibold">{fmt(d.quantity)}</td>
+                          <td className="p-1.5 text-right text-gray-500">₹{fmt(unitPrice)}</td>
+                          <td className="p-1.5 text-right font-bold text-gray-800">₹{fmt(Number(d.quantity) * unitPrice)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-amber-100 font-bold text-amber-800">
+                        <td colSpan={3} className="p-1.5">Total Delivered</td>
+                        <td className="p-1.5 text-right">{fmt(totalDisp)}</td>
+                        <td className="p-1.5"></td>
+                        <td className="p-1.5 text-right">₹{fmt(totalDisp * unitPrice)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+              {/* Payment table */}
+              {receivedPmts.length > 0 && (
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-xs font-bold text-gray-700 mb-2">PAYMENT HISTORY</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-green-600 text-white">
+                          <th className="p-1.5 text-left">#</th>
+                          <th className="p-1.5 text-left">Date</th>
+                          <th className="p-1.5 text-left">Mode / Account</th>
+                          <th className="p-1.5 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {receivedPmts.map((p, i) => {
+                          const acc = app.bankAccounts.find(b => b.id === p.bankAccountId);
+                          return (
+                            <tr key={p.id} className={i % 2 === 0 ? 'bg-white' : 'bg-green-50/30'}>
+                              <td className="p-1.5 text-gray-400">{i+1}</td>
+                              <td className="p-1.5 text-gray-600">{fmtDate(p.date)}</td>
+                              <td className="p-1.5 text-gray-700">{acc?.name || '—'}{p.notes ? ` · ${p.notes}` : ''}</td>
+                              <td className="p-1.5 text-right font-bold text-green-700">₹{fmt(p.amount)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-green-100 font-bold text-green-800">
+                          <td colSpan={3} className="p-1.5">Total Received</td>
+                          <td className="p-1.5 text-right">₹{fmt(totalRcvd)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {/* Financial Summary */}
+              <div className="px-4 py-3 border-b border-gray-100 space-y-2">
+                <p className="text-xs font-bold text-gray-700 mb-1">FINANCIAL SUMMARY</p>
+                {[['Order Value', `₹${fmt(orderVal)}`],['Total Dispatched', `${fmt(totalDisp)} ${cprod?.unit || 'units'}`],['Total Received', `₹${fmt(totalRcvd)}`],['Balance Due', `₹${fmt(Math.max(0, bal))}`]].map(([l,v],i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="text-gray-500">{l}</span>
+                    <span className={`font-bold ${l==='Total Received'?'text-green-700':l==='Balance Due'?bal<=0?'text-green-700':'text-red-600':'text-gray-800'}`}>{v}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Status stamp */}
+              <div className={`mx-4 my-3 py-2 rounded-xl text-center font-bold text-sm ${bal<=0?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>
+                {bal<=0 ? '✓ PAID IN FULL' : `BALANCE DUE: ₹${fmt(bal)}`}
+              </div>
+              {/* Signatory */}
+              <div className="flex justify-end px-4 pb-4">
+                <div className="w-1/3 text-center">
+                  {app.companyInfo?.signature && <img src={app.companyInfo.signature} alt="Signature" className="h-10 mx-auto mb-1 object-contain" />}
+                  <div className="border-t border-gray-400 pt-1.5">
+                    <p className="text-[10px] font-bold text-gray-600">Authorised Signatory</p>
+                    <p className="text-[9px] text-gray-400">For {app.companyInfo?.name || 'UrbanMud Bricks and Blocks'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ReceiptViewer>
+        );
+      })()}
     </div>
   );
 }
