@@ -3,7 +3,8 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
-import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2 } from 'lucide-react';
+import CAExport from './CAExport';
+import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Archive, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2 } from 'lucide-react';
 import { DOC_MAP } from '../services/firestoreDb';
 
 export default function Settings() {
@@ -15,6 +16,7 @@ export default function Settings() {
   const [showReportEmails, setShowReportEmails] = useState(false);
   const [showCompanyInfo, setShowCompanyInfo] = useState(false);
   const [showBackup, setShowBackup]       = useState(false);
+  const [showCAExport, setShowCAExport]   = useState(false);
   const sections = [
     { id: 'factories', label: 'Factories', icon: Building2, color: 'text-blue-500 bg-blue-50' },
     { id: 'productCategories', label: 'Product Categories', icon: Layers, color: 'text-indigo-500 bg-indigo-50' },
@@ -87,6 +89,16 @@ export default function Settings() {
                 </div>
                 <ChevronRight size={16} className="text-gray-300" />
               </button>
+              <button onClick={() => setShowCAExport(true)} className="w-full flex items-center justify-between px-4 py-4 border-t border-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-orange-700 bg-orange-50"><Archive size={18} /></div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">CA / Audit Export</span>
+                    <p className="text-[11px] text-gray-400 leading-tight">ZIP with P&amp;L PDF · CSVs · bill photos</p>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-gray-300" />
+              </button>
             </div>
             <ResetSection />
           </>
@@ -100,6 +112,7 @@ export default function Settings() {
       {showReportEmails && <ReportEmailsPanel onClose={() => setShowReportEmails(false)} />}
       {showCompanyInfo && <CompanyInfoPanel onClose={() => setShowCompanyInfo(false)} />}
       {showBackup     && <BackupRestorePanel onClose={() => setShowBackup(false)} />}
+      {showCAExport  && <CAExport onClose={() => setShowCAExport(false)} />}
       {section && (
         <SectionEditor
           sectionId={section}
