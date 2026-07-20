@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Eye, Pencil, Printer, FileText, Receipt, ArrowRight, X, Download, Share2, Loader } from 'lucide-react';
-import { fmtDate, todayISO } from '../utils/date';
+import { Plus, Trash2, Eye, Pencil, Printer, FileText, Receipt, ArrowRight, X, Download, Share2, Loader, Filter } from 'lucide-react';
+import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -129,13 +129,23 @@ export default function Sales({ initialAction, onActionConsumed }) {
   const app = useApp();
   const canWrite = (app.currentUser?.role === 'admin' || app.currentUser?.role === 'accountant');
   const [activeTab, setActiveTab] = useState('quotes');
-  const [modalType, setModalType] = useState(null); // 'quote' | 'invoice'
+  const [modalType, setModalType] = useState(null);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [prefill, setPrefill] = useState(null);
+  const [filterFrom, setFilterFrom]   = useState(() => monthRange().from);
+  const [filterTo, setFilterTo]       = useState(() => monthRange().to);
+  const [filterQStatus, setFilterQStatus] = useState('');
+  const [filterIStatus, setFilterIStatus] = useState('');
 
-  const quotes   = [...(app.quotes   || [])].sort((a, b) => b.date?.localeCompare(a.date));
-  const invoices = [...(app.invoices || [])].sort((a, b) => b.date?.localeCompare(a.date));
+  const quotes = [...(app.quotes || [])]
+    .filter(q => (!filterFrom || q.date >= filterFrom) && (!filterTo || q.date <= filterTo))
+    .filter(q => !filterQStatus || q.status === filterQStatus)
+    .sort((a, b) => b.date?.localeCompare(a.date));
+  const invoices = [...(app.invoices || [])]
+    .filter(i => (!filterFrom || i.date >= filterFrom) && (!filterTo || i.date <= filterTo))
+    .filter(i => !filterIStatus || i.status === filterIStatus)
+    .sort((a, b) => b.date?.localeCompare(a.date));
 
   function openCreate(type, pre) {
     setEditing(null); setPrefill(pre || null);
@@ -178,8 +188,8 @@ export default function Sales({ initialAction, onActionConsumed }) {
 
       {/* Tabs */}
       <div className="flex px-4 pt-4 gap-2">
-        {[{ id: 'quotes', label: `Quotes (${(app.quotes||[]).length})` },
-          { id: 'invoices', label: `Invoices (${(app.invoices||[]).length})` }].map(t => (
+        {[{ id: 'quotes', label: `Quotes (${quotes.length})` },
+          { id: 'invoices', label: `Invoices (${invoices.length})` }].map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${activeTab === t.id ? 'bg-amber-700 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200'}`}>
             {t.label}
@@ -187,10 +197,35 @@ export default function Sales({ initialAction, onActionConsumed }) {
         ))}
       </div>
 
+      {/* Filter bar */}
+      <div className="px-4 pt-3">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Filter size={12} className="text-amber-700" />
+            <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Filter</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+            <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+            {activeTab === 'quotes' ? (
+              <select className={`${selectCls} col-span-2`} value={filterQStatus} onChange={e => setFilterQStatus(e.target.value)}>
+                <option value="">All Statuses</option>
+                {Object.entries(QUOTE_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            ) : (
+              <select className={`${selectCls} col-span-2`} value={filterIStatus} onChange={e => setFilterIStatus(e.target.value)}>
+                <option value="">All Statuses</option>
+                {Object.entries(INVOICE_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="px-4 py-4 space-y-3">
         {activeTab === 'quotes' ? (
           quotes.length === 0
-            ? <EmptyCard icon="📄" label="No Quotes Yet" sub="Tap the document icon to create a quote" />
+            ? <EmptyCard icon="📄" label="No Quotes in this range" sub="Adjust dates or tap the document icon" />
             : quotes.map(q => (
                 <DocCard key={q.id} docNo={q.quoteNumber} customerName={q.customerName}
                   date={q.date} statusMap={QUOTE_STATUS} status={q.status}
@@ -203,7 +238,7 @@ export default function Sales({ initialAction, onActionConsumed }) {
               ))
         ) : (
           invoices.length === 0
-            ? <EmptyCard icon="🧾" label="No Invoices Yet" sub="Tap the receipt icon to create an invoice" />
+            ? <EmptyCard icon="🧾" label="No Invoices in this range" sub="Adjust dates or tap the receipt icon" />
             : invoices.map(inv => {
                 const { total, subtotal } = calcDoc(inv.items||[], inv.taxType, inv.taxRate, inv.discountValue, inv.discountType);
                 const paid = Number(inv.paidAmount) || 0;

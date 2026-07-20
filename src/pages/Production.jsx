@@ -3,7 +3,7 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import { Plus, Trash2, Factory, Filter, CheckCircle, XCircle, Clock, Send } from 'lucide-react';
-import { fmtDate, todayISO } from '../utils/date';
+import { fmtDate, todayISO, monthRange } from '../utils/date';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
@@ -19,8 +19,9 @@ export default function Production() {
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [filterDate, setFilterDate] = useState(todayISO());
-  const [filterCat, setFilterCat] = useState('');
+  const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
+  const [filterTo, setFilterTo]     = useState(() => monthRange().to);
+  const [filterCat, setFilterCat]   = useState('');
   const [filterFactory, setFilterFactory] = useState('');
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -39,7 +40,7 @@ export default function Production() {
   }
 
   const filtered = app.productionEntries
-    .filter(e => (!filterDate || e.date === filterDate))
+    .filter(e => (!filterFrom || e.date >= filterFrom) && (!filterTo || e.date <= filterTo))
     .filter(e => {
       if (!filterCat) return true;
       const prod = app.products.find(p => p.id === e.productId);
@@ -184,21 +185,18 @@ export default function Production() {
         )}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
-            <Filter size={14} className="text-gray-400" />
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filters</span>
+            <Filter size={14} className="text-amber-700" />
+            <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Filter</span>
+            <span className="ml-auto text-xs text-gray-400">{filtered.length} entr{filtered.length !== 1 ? 'ies' : 'y'}</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              className={inputCls}
-              value={filterDate}
-              onChange={e => setFilterDate(e.target.value)}
-            />
+            <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+            <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
             <select className={selectCls} value={filterFactory} onChange={e => setFilterFactory(e.target.value)}>
               <option value="">All Factories</option>
               {app.factories.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
-            <select className={`${selectCls} col-span-2`} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+            <select className={selectCls} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
               <option value="">All Categories</option>
               {app.productCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>

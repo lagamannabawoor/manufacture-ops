@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download, Share2 } from 'lucide-react';
-import { fmtDate, todayISO } from '../utils/date';
+import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download, Share2, Filter } from 'lucide-react';
+import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -166,9 +166,12 @@ export default function Materials() {
   const [form, setForm]               = useState(freshForm);
   const [activeTab, setActiveTab]     = useState('stock');
   const [capturing, setCapturing]     = useState(false);
-  const [viewingPurchase, setViewingPurchase] = useState(null); // purchase entry to view
+  const [viewingPurchase, setViewingPurchase] = useState(null);
   const [vBusy, setVBusy] = useState(false);
   const fileRef = useRef(null);
+  const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
+  const [filterTo, setFilterTo]     = useState(() => monthRange().to);
+  const [filterMat, setFilterMat]   = useState('');
 
   function set(k, v) {
     setForm(f => {
@@ -260,7 +263,10 @@ export default function Materials() {
     return purchased;
   }
 
-  const sortedPurchases = [...app.materialPurchases].sort((a, b) => b.date.localeCompare(a.date));
+  const filteredPurchases = [...app.materialPurchases]
+    .filter(p => (!filterFrom || p.date >= filterFrom) && (!filterTo || p.date <= filterTo))
+    .filter(p => !filterMat || p.materialTypeId === filterMat)
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div>
@@ -358,15 +364,30 @@ export default function Materials() {
 
         {activeTab === 'purchases' && (
           <div>
-            {sortedPurchases.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Filter size={12} className="text-amber-700" />
+                <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Filter</span>
+                <span className="ml-auto text-xs text-gray-400">{filteredPurchases.length} purchase{filteredPurchases.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+                <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+                <select className={`${selectCls} col-span-2`} value={filterMat} onChange={e => setFilterMat(e.target.value)}>
+                  <option value="">All Material Types</option>
+                  {app.materialTypes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {filteredPurchases.length === 0 ? (
               <div className="bg-white rounded-xl p-10 text-center shadow-sm border border-gray-100">
                 <Package size={40} className="text-gray-200 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm font-medium">No purchases recorded</p>
-                <p className="text-gray-400 text-xs mt-1">Tap + to add a material purchase</p>
+                <p className="text-gray-500 text-sm font-medium">No purchases in this range</p>
+                <p className="text-gray-400 text-xs mt-1">Adjust the date filter or tap + to add</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {sortedPurchases.map(p => {
+                {filteredPurchases.map(p => {
                   const mat = app.materialTypes.find(m => m.id === p.materialTypeId);
                   const account = app.bankAccounts.find(b => b.id === p.bankAccountId);
                   return (

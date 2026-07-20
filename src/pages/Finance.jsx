@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Users, ShoppingBag, Receipt, ArrowDownCircle, ArrowUpCircle, Download, Share2, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { fmtDate, todayISO } from '../utils/date';
+import { Plus, Trash2, Users, ShoppingBag, Receipt, ArrowDownCircle, ArrowUpCircle, Download, Share2, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Filter } from 'lucide-react';
+import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -355,8 +355,12 @@ function LaborTab() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ date: todayISO(), laborGroupId: '', amount: '', paymentType: 'regular', bankAccountId: '', notes: '' });
-  const [viewing, setViewing] = useState(null); // { p, group, account }
+  const [viewing, setViewing] = useState(null);
   const [vBusy, setVBusy] = useState(false);
+  const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
+  const [filterTo, setFilterTo]     = useState(() => monthRange().to);
+  const [filterGroup, setFilterGroup] = useState('');
+  const [filterPayType, setFilterPayType] = useState('');
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
   function save() {
     if (!form.laborGroupId || !form.amount) return alert('Group and amount required.');
@@ -365,7 +369,11 @@ function LaborTab() {
     setShowModal(false);
   }
 
-  const sorted = [...app.laborPayments].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...app.laborPayments]
+    .filter(p => (!filterFrom || p.date >= filterFrom) && (!filterTo || p.date <= filterTo))
+    .filter(p => !filterGroup || p.laborGroupId === filterGroup)
+    .filter(p => !filterPayType || p.paymentType === filterPayType)
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   const groupTotals = app.laborGroups.map(g => ({
     ...g,
@@ -375,7 +383,7 @@ function LaborTab() {
 
   return (
     <div className="px-4 py-4">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-3">
         <h2 className="text-sm font-semibold text-gray-700">Labor Group Summary</h2>
         <button onClick={() => setShowModal(true)} className="flex items-center gap-1 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">
           <Plus size={14} /> Add Payment
@@ -404,9 +412,30 @@ function LaborTab() {
         ))}
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Filter size={12} className="text-amber-700" />
+          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Filter</span>
+          <span className="ml-auto text-xs text-gray-400">{sorted.length} payment{sorted.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+          <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+          <select className={selectCls} value={filterGroup} onChange={e => setFilterGroup(e.target.value)}>
+            <option value="">All Groups</option>
+            {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+          <select className={selectCls} value={filterPayType} onChange={e => setFilterPayType(e.target.value)}>
+            <option value="">All Types</option>
+            <option value="regular">Regular</option>
+            <option value="advance">Advance</option>
+            <option value="installment">Installment</option>
+          </select>
+        </div>
+      </div>
       <h2 className="text-sm font-semibold text-gray-700 mb-3">Payment History</h2>
       {sorted.length === 0 ? (
-        <EmptyState icon={<Users size={36} className="text-gray-200" />} msg="No labor payments yet" />
+        <EmptyState icon={<Users size={36} className="text-gray-200" />} msg="No payments in this range" />
       ) : (
         <div className="space-y-2">
           {sorted.map(p => {
@@ -506,6 +535,9 @@ function OrdersTab() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState(() => ({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' }));
   const [payForm, setPayForm] = useState({ date: todayISO(), orderId: '', amount: '', direction: 'received', bankAccountId: '', notes: '' });
+  const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
+  const [filterTo, setFilterTo]     = useState(() => monthRange().to);
+  const [filterStatus, setFilterStatus] = useState('');
 
   function setOF(k, v) { setOrderForm(f => ({ ...f, [k]: v })); }
   function setPF(k, v) { setPayForm(f => ({ ...f, [k]: v })); }
@@ -525,13 +557,36 @@ function OrdersTab() {
     setShowPayModal(false);
   }
 
-  const [viewing, setViewing] = useState(null); // { p, order, prod, pAcc }
+  const [viewing, setViewing] = useState(null);
   const [vBusy, setVBusy] = useState(false);
-  const sorted = [...app.orders].sort((a, b) => (b.id > a.id ? 1 : -1));
+  const sorted = [...app.orders]
+    .filter(o => {
+      const d = o.deliveryDate || new Date(parseInt(o.id)).toISOString().slice(0,10);
+      return (!filterFrom || d >= filterFrom) && (!filterTo || d <= filterTo);
+    })
+    .filter(o => !filterStatus || o.status === filterStatus)
+    .sort((a, b) => (b.id > a.id ? 1 : -1));
   const statusColors = { pending: 'bg-amber-50 text-amber-700', in_progress: 'bg-blue-50 text-blue-700', completed: 'bg-green-50 text-green-700' };
 
   return (
     <div className="px-4 py-4">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Filter size={12} className="text-amber-700" />
+          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Filter</span>
+          <span className="ml-auto text-xs text-gray-400">{sorted.length} order{sorted.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+          <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+          <select className={`${selectCls} col-span-2`} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+      </div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-sm font-semibold text-gray-700">Orders</h2>
         <div className="flex gap-2">
@@ -545,7 +600,7 @@ function OrdersTab() {
       </div>
 
       {sorted.length === 0 ? (
-        <EmptyState icon={<ShoppingBag size={36} className="text-gray-200" />} msg="No orders yet" />
+        <EmptyState icon={<ShoppingBag size={36} className="text-gray-200" />} msg="No orders in this range" />
       ) : (
         <div className="space-y-3">
           {sorted.map(order => {
@@ -729,6 +784,10 @@ function ExpensesTab() {
   const [vBusy, setVBusy]             = useState(false);
   const [form, setForm] = useState(freshExpenseForm);
   const fileRef = useRef(null);
+  const [filterFrom, setFilterFrom]   = useState(() => monthRange().from);
+  const [filterTo, setFilterTo]       = useState(() => monthRange().to);
+  const [filterCat, setFilterCat]     = useState('');
+  const [filterAccount, setFilterAccount] = useState('');
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
   async function handleCapture() {
@@ -758,7 +817,12 @@ function ExpensesTab() {
     setShowModal(false);
   }
 
-  const sorted = [...app.expenses].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...app.expenses]
+    .filter(e => (!filterFrom || e.date >= filterFrom) && (!filterTo || e.date <= filterTo))
+    .filter(e => !filterCat || e.categoryId === filterCat)
+    .filter(e => !filterAccount || e.bankAccountId === filterAccount)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const totalFiltered = sorted.reduce((s, e) => s + Number(e.amount || 0), 0);
   const totalToday = app.expenses.filter(e => e.date === todayISO()).reduce((s, e) => s + Number(e.amount || 0), 0);
 
   return (
@@ -774,8 +838,27 @@ function ExpensesTab() {
         </button>
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Filter size={12} className="text-amber-700" />
+          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Filter</span>
+          <span className="ml-auto text-xs text-gray-400">{sorted.length} · ₹{fmt(totalFiltered)}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+          <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+          <select className={selectCls} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+            <option value="">All Categories</option>
+            {app.expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select className={selectCls} value={filterAccount} onChange={e => setFilterAccount(e.target.value)}>
+            <option value="">All Accounts</option>
+            {app.bankAccounts.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </div>
+      </div>
       {sorted.length === 0 ? (
-        <EmptyState icon={<Receipt size={36} className="text-gray-200" />} msg="No expenses recorded" />
+        <EmptyState icon={<Receipt size={36} className="text-gray-200" />} msg="No expenses in this range" />
       ) : (
         <div className="space-y-2">
           {sorted.map(e => {
