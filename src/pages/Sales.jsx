@@ -557,10 +557,10 @@ function buildPDF(docData, type, ci) {
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
-  const A  = [15, 30, 80];     // deep navy (primary)
-  const DK = [20, 24, 35];     // near-black
-  const MD = [75, 85, 99];     // slate gray
-  const LT = [148, 163, 184];  // light slate
+  const A  = [146, 64, 14];   // amber-800 (primary)
+  const DK = [31, 41, 55];     // near-black
+  const MD = [107, 114, 128];  // gray
+  const LT = [253, 230, 138];  // amber-200
   const rp = (n) => 'Rs.' + fmt(n); // jsPDF standard fonts can't render ₹
 
   let y = ML;
@@ -649,7 +649,7 @@ function buildPDF(docData, type, ci) {
     margin: { left: ML, right: MR },
     headStyles: { fillColor: A, textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', cellPadding: 3.5 },
     bodyStyles: { fontSize: 8.5, textColor: DK, cellPadding: 3 },
-    alternateRowStyles: { fillColor: [247, 249, 252] },
+    alternateRowStyles: { fillColor: [255, 251, 235] },
     columnStyles: {
       0: { cellWidth: 8,  halign: 'center' },
       2: { cellWidth: 16, halign: 'center' },

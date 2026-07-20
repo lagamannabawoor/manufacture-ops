@@ -126,14 +126,14 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
   });
   y += 22;
 
-  const sec = (title, color) => {
+  const sec = (title) => {
     if (y > 245) { doc.addPage(); y = 16; }
-    doc.setFillColor(color[0], color[1], color[2]);
-    doc.setGState && doc.setGState(doc.GState({ opacity: 0.12 }));
-    doc.setFillColor(Math.min(255, color[0] + 100), Math.min(255, color[1] + 100), Math.min(255, color[2] + 100));
+    doc.setFillColor(255, 251, 235);
     doc.rect(ML, y, CW, 7, 'F');
-    doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(...color);
-    doc.text(title, ML + 3, y + 5);
+    doc.setFillColor(...C.amber);
+    doc.rect(ML, y, 3, 7, 'F');
+    doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(...C.amber);
+    doc.text(title, ML + 5, y + 5);
     y += 9;
   };
 
@@ -142,8 +142,8 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
       startY: y, margin: { left: ML, right: ML },
       head: [head], body, foot: foot ? [foot] : undefined,
       styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
-      headStyles: { fillColor: [243, 244, 246], textColor: C.dark, fontStyle: 'bold', fontSize: 7 },
-      footStyles: { fillColor: [243, 244, 246], fontStyle: 'bold', fontSize: 7.5 },
+      headStyles: { fillColor: [254, 243, 199], textColor: C.dark, fontStyle: 'bold', fontSize: 7 },
+      footStyles: { fillColor: [254, 243, 199], fontStyle: 'bold', fontSize: 7.5 },
       columnStyles: colAligns || {},
       theme: 'grid',
     });
@@ -152,7 +152,7 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
   };
 
   // A. Income
-  sec('A.  INCOME  —  SALES & ORDER PAYMENTS RECEIVED', C.green);
+  sec('A.  INCOME  —  SALES & ORDER PAYMENTS RECEIVED');
   tbl(
     ['Date', 'Customer', 'Order #', 'Product', 'Bank Account', 'Amount Received'],
     rows.income,
@@ -161,7 +161,7 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
   );
 
   // B. Material Purchases
-  sec('B.  EXPENDITURE  —  MATERIAL PURCHASES', [29, 78, 216]);
+  sec('B.  EXPENDITURE  —  MATERIAL PURCHASES');
   tbl(
     ['Date', 'Material', 'Qty', 'Supplier', 'Bill No', 'Bill Type', 'Amount'],
     rows.mat,
@@ -170,7 +170,7 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
   );
 
   // C. Labour Payments
-  sec('C.  EXPENDITURE  —  LABOUR PAYMENTS', [6, 95, 70]);
+  sec('C.  EXPENDITURE  —  LABOUR PAYMENTS');
   tbl(
     ['Date', 'Labour Group', 'Type', 'Bank Account', 'Notes', 'Amount'],
     rows.labor,
@@ -179,7 +179,7 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
   );
 
   // D. Other Expenses
-  sec('D.  EXPENDITURE  —  OTHER EXPENSES', [124, 58, 237]);
+  sec('D.  EXPENDITURE  —  OTHER EXPENSES');
   tbl(
     ['Date', 'Category', 'Description', 'GST', 'Bank Account', 'Bill Type', 'Amount'],
     rows.exp,
@@ -188,7 +188,7 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
   );
 
   // E. P&L Summary
-  sec('E.  PROFIT & LOSS SUMMARY', C.amber);
+  sec('E.  PROFIT & LOSS SUMMARY');
   autoTable(doc, {
     startY: y, margin: { left: ML, right: ML },
     body: [

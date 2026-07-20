@@ -54,7 +54,7 @@ function buildURDPDF(purchase, matName, matUnit, ci) {
   const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
   const coPhone   = ci?.phone   || '';
   const coGSTIN   = ci?.gstin   || '';
-  const A = [15,30,80], DK = [20,24,35], MD = [75,85,99], LT = [148,163,184], AM = [30,58,138];
+  const A = [146,64,14], DK = [31,41,55], MD = [107,114,128], LT = [253,230,138], AM = [146,64,14];
   const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = ML;
@@ -113,7 +113,7 @@ function buildURDPDF(purchase, matName, matUnit, ci) {
     head: [['#','Description','Unit','Qty','Rate','Amount']],
     body: [[1, matName||'Raw Material', matUnit||'unit', qty, rp(rate), rp(total)]],
     headStyles: { fillColor:A, textColor:[255,255,255], fontSize:9, fontStyle:'bold', cellPadding:3.5 },
-    bodyStyles: { fontSize:9, textColor:DK, cellPadding:3.5, alternateRowStyles:{ fillColor:[247,249,252] } },
+    bodyStyles: { fontSize:9, textColor:DK, cellPadding:3.5, alternateRowStyles:{ fillColor:[255,251,235] } },
     columnStyles: { 0:{cellWidth:8,halign:'center'}, 2:{cellWidth:18,halign:'center'}, 3:{cellWidth:14,halign:'right'}, 4:{cellWidth:28,halign:'right'}, 5:{cellWidth:30,halign:'right'} },
   });
   y = pdf.lastAutoTable.finalY + 7;
