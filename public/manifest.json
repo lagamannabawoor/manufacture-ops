@@ -1,13 +1,19 @@
 {
-  "name": "ManufactureOps",
-  "short_name": "MfgOps",
-  "description": "Daily Manufacturing Operations Manager",
+  "name": "Urbanmud",
+  "short_name": "Urbanmud",
+  "description": "Urbanmud Bricks & Blocks – Manufacturing Operations",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f1f5f9",
-  "theme_color": "#2563eb",
+  "background_color": "#1c0a00",
+  "theme_color": "#b45309",
   "orientation": "portrait",
   "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
     {
       "src": "icon-192.png",
       "sizes": "192x192",

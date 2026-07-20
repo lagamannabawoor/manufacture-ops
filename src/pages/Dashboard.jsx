@@ -7,6 +7,7 @@ import {
   Boxes, FlaskConical, Target, Percent,
 } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
+import UrbanmudLogo from '../components/UrbanmudLogo';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 function cur(n) { return '₹' + fmt(n); }
@@ -108,8 +109,13 @@ export default function Dashboard({ navigate }) {
         <p className="text-amber-300 text-xs mb-2 flex items-center gap-1.5">
           <CalendarDays size={12} /> {dateStr}
         </p>
-        <h1 className="text-2xl font-bold tracking-wide">Urbanmud</h1>
-        <p className="text-amber-200 text-sm mt-0.5">Manufacturing Operations</p>
+        <div className="flex items-center gap-3 mt-1">
+          <UrbanmudLogo size={48} />
+          <div>
+            <h1 className="text-2xl font-bold tracking-wide">Urbanmud</h1>
+            <p className="text-amber-200 text-sm">Bricks &amp; Blocks Manufacturing</p>
+          </div>
+        </div>
 
         {/* Today's key metrics inline */}
         <div className="grid grid-cols-3 gap-2 mt-5">
