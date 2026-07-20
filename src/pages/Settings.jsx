@@ -3,7 +3,7 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
-import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp } from 'lucide-react';
+import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2 } from 'lucide-react';
 import { DOC_MAP } from '../services/firestoreDb';
 
 export default function Settings() {
@@ -788,10 +788,7 @@ const PREVIEW_KEYS = [
 ];
 
 function toBase64UTF8(str) {
-  const bytes = new TextEncoder().encode(str);
-  let binary = '';
-  bytes.forEach(b => { binary += String.fromCharCode(b); });
-  return btoa(binary);
+  return btoa(unescape(encodeURIComponent(str)));
 }
 
 function BackupRestorePanel({ onClose }) {
@@ -801,21 +798,28 @@ function BackupRestorePanel({ onClose }) {
   const fileRef = useRef(null);
   if (app.currentUser?.username !== 'lbawoor') return null;
 
-  async function handleExport() {
+  function buildBackupJSON() {
+    const ALL_KEYS = Object.values(DOC_MAP).flat();
+    const backup = { _app: 'urbanmud-mfg-ops', _version: 2, _exportedAt: new Date().toISOString() };
+    ALL_KEYS.forEach(k => { if (app[k] !== undefined) backup[k] = app[k]; });
+    return JSON.stringify(backup, null, 2);
+  }
+
+  async function handleDownload() {
     setBusy('exporting');
     try {
-      const ALL_KEYS = Object.values(DOC_MAP).flat();
-      const backup = { _app: 'urbanmud-mfg-ops', _version: 2, _exportedAt: new Date().toISOString() };
-      ALL_KEYS.forEach(k => { if (app[k] !== undefined) backup[k] = app[k]; });
-      const json = JSON.stringify(backup, null, 2);
+      const json = buildBackupJSON();
       const filename = `urbanmud-backup-${new Date().toISOString().slice(0, 10)}.json`;
-
       try {
         const { Filesystem, Directory } = await import('@capacitor/filesystem');
-        const { Share } = await import('@capacitor/share');
         const b64 = toBase64UTF8(json);
-        const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
-        await Share.share({ title: filename, url: result.uri, dialogTitle: 'Backup — Share or Email' });
+        try {
+          await Filesystem.writeFile({ path: `Download/${filename}`, data: b64, directory: Directory.ExternalStorage });
+          alert(`\u2713 Saved to Downloads: ${filename}`);
+        } catch {
+          await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Documents });
+          alert(`\u2713 Saved to Documents: ${filename}`);
+        }
       } catch {
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -823,6 +827,27 @@ function BackupRestorePanel({ onClose }) {
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
     } catch (e) { alert('Export failed: ' + e.message); }
+    finally { setBusy(''); }
+  }
+
+  async function handleShare() {
+    setBusy('sharing');
+    try {
+      const json = buildBackupJSON();
+      const filename = `urbanmud-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      const b64 = toBase64UTF8(json);
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+        await Share.share({ title: 'Urbanmud Backup', text: `Backup file: ${filename}`, url: result.uri, dialogTitle: 'Share / Email Backup' });
+      } catch {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (e) { alert('Share failed: ' + e.message); }
     finally { setBusy(''); }
   }
 
@@ -876,18 +901,26 @@ function BackupRestorePanel({ onClose }) {
           </div>
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 text-xs text-emerald-700 space-y-0.5">
             {[
-              'All material purchases + bill images',
-              'Production history, expenses, labour payments',
-              'Sales quotes & invoices',
-              'Orders, payments, master data',
-              'Company info & settings',
+              'All material purchases incl. uploaded bill photos',
+              'All expenses incl. bill photos & URD invoices',
+              'Production history, labour payments',
+              'Sales quotes, invoices, orders & payments',
+              'Master data, bank accounts, company info',
             ].map((l, i) => <p key={i} className="flex items-start gap-1"><span className="mt-0.5">✓</span> {l}</p>)}
           </div>
-          <button onClick={handleExport} disabled={!!busy}
-            className="w-full py-3.5 bg-emerald-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform">
-            <FileDown size={16}/>
-            {busy === 'exporting' ? 'Preparing backup…' : 'Download / Share Backup File'}
-          </button>
+          <p className="text-[10px] text-gray-400 mb-3">⚠️ Bill photos are embedded in the file — backup size may be large if many photos are stored.</p>
+          <div className="flex gap-2">
+            <button onClick={handleDownload} disabled={!!busy}
+              className="flex-1 py-3 bg-emerald-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform">
+              <FileDown size={15}/>
+              {busy === 'exporting' ? 'Saving…' : 'Download'}
+            </button>
+            <button onClick={handleShare} disabled={!!busy}
+              className="flex-1 py-3 bg-blue-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform">
+              <Share2 size={15}/>
+              {busy === 'sharing' ? 'Sharing…' : 'Share / Email'}
+            </button>
+          </div>
         </div>
 
         {/* IMPORT */}
