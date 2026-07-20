@@ -100,7 +100,7 @@ function buildURDPDF(purchase, matName, matUnit, ci) {
     const sl = pdf.splitTextToSize(purchase.supplierAddress, hW);
     pdf.text(sl, ML+hW+6, y); y += sl.length*4;
   }
-  pdf.setFont('helvetica','bold'); pdf.setTextColor([220,38,38]);
+  pdf.setFont('helvetica','bold'); pdf.setTextColor(220,38,38);
   pdf.text('GST Status: UNREGISTERED', ML+hW+6, y);
   pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD); y += 8;
   pdf.setDrawColor(...LT); pdf.setLineWidth(0.3); pdf.line(ML, y, W-MR, y); y += 6;
@@ -210,25 +210,33 @@ export default function Materials() {
       const { Share } = await import('@capacitor/share');
       const result = await Filesystem.writeFile({ path: filename, data: base64JPEG, directory: Directory.Cache });
       await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share / Save Photo' });
-    } catch {
-      const link = document.createElement('a');
-      link.href = `data:image/jpeg;base64,${base64JPEG}`; link.download = filename; link.click();
+    } catch (err) {
+      try {
+        const link = document.createElement('a');
+        link.href = `data:image/jpeg;base64,${base64JPEG}`; link.download = filename; link.click();
+      } catch (e2) {
+        alert('Could not save/share: ' + (err?.message || err));
+      }
     }
   }
 
   async function shareURDPDF(purchase) {
-    const mat = app.materialTypes.find(m => m.id === purchase.materialTypeId);
-    const pdf = buildURDPDF(purchase, mat?.name, mat?.unit, app.companyInfo || {});
-    const blob = pdf.output('blob');
-    const filename = `${purchase.billNumber || 'URD'}.pdf`;
     try {
-      const { Filesystem, Directory } = await import('@capacitor/filesystem');
-      const { Share } = await import('@capacitor/share');
-      const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
-      const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
-      await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share URD Bill' });
-    } catch {
-      pdf.save(filename);
+      const mat = app.materialTypes.find(m => m.id === purchase.materialTypeId);
+      const pdf = buildURDPDF(purchase, mat?.name, mat?.unit, app.companyInfo || {});
+      const blob = pdf.output('blob');
+      const filename = `${purchase.billNumber || 'URD'}.pdf`;
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+        const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+        await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share URD Bill' });
+      } catch {
+        pdf.save(filename);
+      }
+    } catch (err) {
+      alert('Failed to generate PDF: ' + (err?.message || err));
     }
   }
 
