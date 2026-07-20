@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Download, Share2, Archive } from 'lucide-react';
+import { Download, Share2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
@@ -285,11 +285,11 @@ export default function CAExport({ onClose }) {
   const valid = !!(from && to && from <= to);
   const inRange = d => { const s = (d || '').slice(0, 10); return s >= from && s <= to; };
 
-  const expenses       = app.expenses.filter(e => inRange(e.date));
-  const matPurchases   = app.materialPurchases.filter(p => inRange(p.date));
-  const laborPayments  = app.laborPayments.filter(p => inRange(p.date));
-  const orderPayments  = (app.orderPayments || []).filter(p => inRange(p.date));
-  const prodEntries    = app.productionEntries.filter(e => inRange(e.date));
+  const expenses       = (app.expenses       || []).filter(e => inRange(e.date));
+  const matPurchases   = (app.materialPurchases|| []).filter(p => inRange(p.date));
+  const laborPayments  = (app.laborPayments   || []).filter(p => inRange(p.date));
+  const orderPayments  = (app.orderPayments   || []).filter(p => inRange(p.date));
+  const prodEntries    = (app.productionEntries||[]).filter(e => inRange(e.date));
   const income         = orderPayments.filter(p => p.direction === 'received');
 
   const totalIncome  = income.reduce((s, p) => s + num(p.amount), 0);
@@ -529,14 +529,14 @@ export default function CAExport({ onClose }) {
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">What's in the ZIP</p>
           <div className="space-y-2">
             {[
-              ['📄', '01_PL_Statement.pdf',      'Printable A4 letterhead — Income, Expenses, P&L, Bank summary, CA notes', 'bg-amber-50 text-amber-700'],
-              ['📊', '02–08 CSV data files',      'P&L · Sales · Materials · Labour · Expenses · Production · Bank (open in Excel)', 'bg-blue-50 text-blue-700'],
-              ['🧾', `Bills_Expenses/ (${expenses.filter(e=>e.billImage).length} files)`, 'Original expense bill photos as JPEG', 'bg-green-50 text-green-700'],
-              ['📦', `Bills_Materials/ (${matPurchases.filter(p=>p.billImage).length} files)`, 'Material purchase bill photos as JPEG', 'bg-green-50 text-green-700'],
-              ['📝', 'README.txt',                'Contents index + notes for CA about URD, GST, ITC', 'bg-gray-50 text-gray-700'],
-            ].map(([icon, title, desc, cls]) => (
-              <div key={title} className={`${cls.split(' ')[0]} rounded-xl px-3 py-2.5`}>
-                <p className={`text-xs font-bold ${cls.split(' ')[1]}`}>{icon} {title}</p>
+              { icon:'📄', title:'01_PL_Statement.pdf',      desc:'Printable A4 letterhead — Income, Expenses, P&L, Bank summary, CA notes', bg:'bg-amber-50', tc:'text-amber-700' },
+              { icon:'📊', title:'02–08 CSV data files',      desc:'P&L · Sales · Materials · Labour · Expenses · Production · Bank (open in Excel)', bg:'bg-blue-50', tc:'text-blue-700' },
+              { icon:'🧾', title:`Bills_Expenses/ (${expenses.filter(e=>e.billImage).length} files)`, desc:'Original expense bill photos as JPEG', bg:'bg-green-50', tc:'text-green-700' },
+              { icon:'📦', title:`Bills_Materials/ (${matPurchases.filter(p=>p.billImage).length} files)`, desc:'Material purchase bill photos as JPEG', bg:'bg-green-50', tc:'text-green-700' },
+              { icon:'📝', title:'README.txt',                desc:'Contents index + notes for CA about URD, GST, ITC', bg:'bg-gray-50', tc:'text-gray-700' },
+            ].map(({ icon, title, desc, bg, tc }) => (
+              <div key={title} className={`${bg} rounded-xl px-3 py-2.5`}>
+                <p className={`text-xs font-bold ${tc}`}>{icon} {title}</p>
                 <p className="text-[10px] text-gray-500 mt-0.5">{desc}</p>
               </div>
             ))}
