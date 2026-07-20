@@ -542,30 +542,57 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
   const statusInfo = isQuote ? QUOTE_STATUS[doc.status] : INVOICE_STATUS[doc.status];
 
   function printDoc() {
-    const content = document.getElementById('sales-print-view').innerHTML;
-    const win = window.open('', '_blank', 'width=800,height=900');
-    win.document.write(`<!DOCTYPE html><html><head><title>${docNo}</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Arial, sans-serif; font-size: 12px; color: #333; padding: 30px; }
-        table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-        th { background: #92400e; color: white; padding: 8px 10px; text-align: left; font-size: 11px; }
-        td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 11px; }
-        tr:nth-child(even) td { background: #fef9f0; }
-        .sign-section { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 40px; padding-top: 16px; border-top: 1px solid #eee; }
-        .sign-box { text-align: center; }
-        .sign-line { border-top: 1.5px solid #555; margin-bottom: 6px; margin-top: 40px; }
-        .sign-label { font-size: 10px; font-weight: bold; color: #333; }
-        .sign-sub { font-size: 9px; color: #777; margin-top: 2px; }
-        .back-btn { position: fixed; top: 12px; left: 12px; background: #92400e; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; z-index: 9999; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        @media print { .back-btn { display: none !important; } body { padding: 15px; } }
-      </style>
-    </head><body>
-      <button class="back-btn" onclick="window.close()">&#8592; Back</button>
-      ${content}
-    </body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 400);
+    document.getElementById('__um_ps')?.remove();
+    document.getElementById('__um_pp')?.remove();
+
+    const styleEl = document.createElement('style');
+    styleEl.id = '__um_ps';
+    styleEl.textContent = `
+      #__um_pp { display: none; }
+      @media print {
+        body > *:not(#__um_pp) { display: none !important; }
+        #__um_pp {
+          display: block !important;
+          font-family: Arial, sans-serif;
+          font-size: 12px;
+          color: #333;
+          padding: 16px;
+        }
+        #__um_pp * { max-width: 100%; box-sizing: border-box; }
+        #__um_pp table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        #__um_pp th {
+          background: #92400e !important;
+          color: white !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          padding: 7px 8px;
+          text-align: left;
+          font-size: 11px;
+        }
+        #__um_pp td { padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 11px; }
+        #__um_pp tr:nth-child(even) td {
+          background: #fef9f0 !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        #__um_pp .sign-box { text-align: center; }
+      }
+    `;
+    document.head.appendChild(styleEl);
+
+    const portal = document.createElement('div');
+    portal.id = '__um_pp';
+    portal.innerHTML = document.getElementById('sales-print-view').innerHTML;
+    document.body.appendChild(portal);
+
+    const cleanup = () => {
+      document.getElementById('__um_ps')?.remove();
+      document.getElementById('__um_pp')?.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+
+    setTimeout(() => window.print(), 150);
   }
 
   return (
