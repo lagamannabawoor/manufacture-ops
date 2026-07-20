@@ -2,10 +2,128 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Users, ShoppingBag, Receipt, ChevronRight, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Plus, Trash2, Users, ShoppingBag, Receipt, ArrowDownCircle, ArrowUpCircle, Download, Share2 } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
+function rp(n)  { return 'Rs.' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0); }
+
+function blobToBase64(blob) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+}
+
+async function shareOrDownloadPDF(pdf, filename) {
+  const blob = pdf.output('blob');
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+    const b64 = await blobToBase64(blob);
+    const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+    await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share Document' });
+  } catch {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
+function buildFinancePDF(type, entry, meta, ci) {
+  const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
+  const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
+  const coPhone   = ci?.phone   || '';
+  const coGSTIN   = ci?.gstin   || '';
+  const A = [146,64,14], DK = [30,30,30], MD = [90,90,90], LT = [190,190,190];
+  const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let y = ML;
+
+  const CFG = {
+    expense:          { title: 'EXPENSE VOUCHER',        badge: 'EXPENSE AMOUNT',    col: [254,242,242], tcol: [220,38,38]  },
+    labor:            { title: 'LABOUR PAYMENT VOUCHER', badge: 'AMOUNT PAID',        col: [238,242,255], tcol: [79,70,229]  },
+    payment_received: { title: 'PAYMENT RECEIPT',        badge: 'AMOUNT RECEIVED',   col: [240,253,244], tcol: [22,163,74]  },
+    payment_paid:     { title: 'PAYMENT ORDER',          badge: 'AMOUNT PAID',        col: [254,242,242], tcol: [220,38,38]  },
+  };
+  const cfg = CFG[type] || CFG.expense;
+  const vno = (entry.id || '').slice(-8).toUpperCase() || 'VCH';
+
+  // Left: company header
+  const hY = y;
+  pdf.setFontSize(14); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text(coName.toUpperCase(), ML, y+7); y += 11;
+  pdf.setFontSize(8); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  coAddress.split('\n').forEach(l => { pdf.text(l, ML, y); y += 4; });
+  if (coPhone) { pdf.text('Ph: '+coPhone, ML, y); y += 4; }
+  if (coGSTIN) { pdf.setFont('helvetica','bold'); pdf.text('GSTIN: '+coGSTIN, ML, y); pdf.setFont('helvetica','normal'); y += 4; }
+
+  // Right: doc meta
+  const mX = W-MR; let ry = hY+7;
+  pdf.setFontSize(13); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK);
+  pdf.text(cfg.title, mX, ry, { align:'right' }); ry += 8;
+  pdf.setFontSize(9); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text(vno, mX, ry, { align:'right' }); ry += 6;
+  pdf.setFontSize(8); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  pdf.text('Date: '+(entry.date||''), mX, ry, { align:'right' }); ry += 5;
+
+  y = Math.max(y, ry)+4;
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.6); pdf.line(ML, y, W-MR, y); y += 7;
+
+  // Details table
+  const rows = [];
+  if (type === 'expense') {
+    rows.push(['Category', meta.categoryName||'—']);
+    if (entry.description) rows.push(['Description', entry.description]);
+    rows.push(['Amount', rp(entry.amount)]);
+    if (entry.hasGST && entry.gstAmount) rows.push(['GST Amount', rp(entry.gstAmount)]);
+    if (meta.accountName) rows.push(['Payment Via', meta.accountName]);
+  } else if (type === 'labor') {
+    rows.push(['Labor Group', meta.groupName||'—']);
+    rows.push(['Payment Type', (entry.paymentType||'regular').charAt(0).toUpperCase()+(entry.paymentType||'regular').slice(1)]);
+    rows.push(['Amount', rp(entry.amount)]);
+    if (meta.accountName) rows.push(['Payment Via', meta.accountName]);
+  } else {
+    if (meta.orderNumber) rows.push(['Order No', meta.orderNumber]);
+    rows.push(['Customer', meta.customerName||'—']);
+    if (meta.productName) rows.push(['Product', meta.productName]);
+    rows.push(['Direction', type === 'payment_received' ? 'Received from Customer' : 'Paid Out']);
+    rows.push(['Amount', rp(entry.amount)]);
+    if (meta.accountName) rows.push(['Payment Via', meta.accountName]);
+  }
+  if (entry.notes) rows.push(['Notes', entry.notes]);
+
+  autoTable(pdf, {
+    startY: y, margin: { left:ML, right:MR },
+    body: rows, showHead: 'never',
+    bodyStyles: { fontSize:10.5, textColor:DK, cellPadding:4 },
+    columnStyles: { 0:{ cellWidth:52, fontStyle:'bold', textColor:MD }, 1:{ fontStyle:'normal' } },
+    alternateRowStyles: { fillColor:[255,248,235] },
+  });
+  y = pdf.lastAutoTable.finalY + 7;
+
+  // Amount highlight band
+  if (y+13>H-18) { pdf.addPage(); y=ML; }
+  pdf.setFillColor(...cfg.col); pdf.rect(ML, y, CW, 12, 'F');
+  pdf.setFontSize(11); pdf.setFont('helvetica','bold'); pdf.setTextColor(...cfg.tcol);
+  pdf.text(cfg.badge, ML+4, y+8);
+  pdf.text(rp(Number(entry.amount)||0), W-MR-4, y+8, { align:'right' });
+  y += 18;
+
+  // Signing
+  if (y+35>H-18) { pdf.addPage(); y=ML; }
+  y += 4; pdf.setDrawColor(...LT); pdf.setLineWidth(0.3); pdf.line(ML,y,W-MR,y); y += 15;
+  const sw = CW/3;
+  [['Prepared By',''],['Verified By',''],['Authorised Signatory','For '+coName]]
+    .forEach(([lbl,sub],i) => {
+      const cx = ML+i*sw+sw/2;
+      pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(cx-sw/2+6,y,cx+sw/2-6,y);
+      pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text(lbl,cx,y+5,{align:'center'});
+      if(sub){pdf.setFontSize(7);pdf.setFont('helvetica','normal');pdf.setTextColor(...MD);pdf.text(sub,cx,y+9,{align:'center'});}
+    });
+  pdf.setFontSize(7); pdf.setFont('helvetica','normal'); pdf.setTextColor(...LT);
+  pdf.text('Generated by Urbanmud Manufacturing Ops', W/2, H-8, { align:'center' });
+  return pdf;
+}
 
 function genOrderId() {
   const now = new Date();
@@ -110,22 +228,30 @@ function LaborTab() {
             const account = app.bankAccounts.find(b => b.id === p.bankAccountId);
             const typeColors = { regular: 'bg-green-50 text-green-700', advance: 'bg-amber-50 text-amber-700', installment: 'bg-blue-50 text-blue-700' };
             return (
-              <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-gray-800">{group?.name || 'Unknown'}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${typeColors[p.paymentType] || 'bg-gray-100 text-gray-600'}`}>
-                      {p.paymentType}
-                    </span>
+              <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-gray-800">{group?.name || 'Unknown'}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${typeColors[p.paymentType] || 'bg-gray-100 text-gray-600'}`}>
+                        {p.paymentType}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400">{fmtDate(p.date)} {account ? `· ${account.name}` : ''}</p>
+                    {p.notes && <p className="text-xs text-gray-500 mt-1">{p.notes}</p>}
                   </div>
-                  <p className="text-xs text-gray-400">{fmtDate(p.date)} {account ? `· ${account.name}` : ''}</p>
-                  {p.notes && <p className="text-xs text-gray-500 mt-1">{p.notes}</p>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-base font-bold text-red-600">₹{fmt(p.amount)}</p>
-                  <button onClick={() => { if (confirm('Delete?')) app.deleteItem('laborPayments', p.id); }} className="text-gray-300 hover:text-red-400 p-1">
-                    <Trash2 size={15} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <p className="text-base font-bold text-red-600 mr-1">₹{fmt(p.amount)}</p>
+                    <button title="Download voucher" onClick={() => {
+                      const pdf = buildFinancePDF('labor', p, { groupName: group?.name, accountName: account?.name }, app.companyInfo||{});
+                      pdf.save(`Labour-${p.date}-${(p.id||'').slice(-5)}.pdf`);
+                    }} className="text-blue-400 hover:text-blue-600 p-1"><Download size={14}/></button>
+                    <button title="Share" onClick={async () => {
+                      const pdf = buildFinancePDF('labor', p, { groupName: group?.name, accountName: account?.name }, app.companyInfo||{});
+                      await shareOrDownloadPDF(pdf, `Labour-${p.date}.pdf`);
+                    }} className="text-purple-400 hover:text-purple-600 p-1"><Share2 size={14}/></button>
+                    <button onClick={() => { if (confirm('Delete?')) app.deleteItem('laborPayments', p.id); }} className="text-gray-300 hover:text-red-400 p-1"><Trash2 size={15}/></button>
+                  </div>
                 </div>
               </div>
             );
@@ -263,14 +389,30 @@ function OrdersTab() {
                 </div>
                 {payments.length > 0 && (
                   <div className="mt-3 pt-2 border-t border-gray-50 space-y-1">
-                    {payments.slice(-3).map(p => (
-                      <div key={p.id} className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">{fmtDate(p.date)}</span>
-                        <span className={p.direction === 'received' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
-                          {p.direction === 'received' ? '+' : '-'}₹{fmt(p.amount)}
-                        </span>
-                      </div>
-                    ))}
+                    {payments.slice(-3).map(p => {
+                      const pAcc = app.bankAccounts.find(b => b.id === p.bankAccountId);
+                      const prod = app.products.find(pr => pr.id === order.productId);
+                      return (
+                        <div key={p.id} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">{fmtDate(p.date)}</span>
+                          <div className="flex items-center gap-1">
+                            <span className={p.direction === 'received' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
+                              {p.direction === 'received' ? '+' : '-'}₹{fmt(p.amount)}
+                            </span>
+                            <button title="Download receipt" onClick={() => {
+                              const pdf = buildFinancePDF(p.direction === 'received' ? 'payment_received' : 'payment_paid', p,
+                                { orderNumber: order.orderNumber, customerName: order.customerName, productName: prod?.name, accountName: pAcc?.name }, app.companyInfo||{});
+                              pdf.save(`Receipt-${p.date}-${(p.id||'').slice(-5)}.pdf`);
+                            }} className="text-blue-400 p-0.5 hover:text-blue-600"><Download size={11}/></button>
+                            <button title="Share" onClick={async () => {
+                              const pdf = buildFinancePDF(p.direction === 'received' ? 'payment_received' : 'payment_paid', p,
+                                { orderNumber: order.orderNumber, customerName: order.customerName, productName: prod?.name, accountName: pAcc?.name }, app.companyInfo||{});
+                              await shareOrDownloadPDF(pdf, `Receipt-${p.date}.pdf`);
+                            }} className="text-purple-400 p-0.5 hover:text-purple-600"><Share2 size={11}/></button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -378,21 +520,29 @@ function ExpensesTab() {
             const cat = app.expenseCategories.find(c => c.id === e.categoryId);
             const account = app.bankAccounts.find(b => b.id === e.bankAccountId);
             return (
-              <div key={e.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs px-2 py-0.5 bg-red-50 text-red-700 rounded-full font-medium">{cat?.name || 'Other'}</span>
-                    {e.hasGST && <span className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full">GST</span>}
+              <div key={e.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs px-2 py-0.5 bg-red-50 text-red-700 rounded-full font-medium">{cat?.name || 'Other'}</span>
+                      {e.hasGST && <span className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full">GST</span>}
+                    </div>
+                    <p className="text-sm font-medium text-gray-800">{e.description || cat?.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{fmtDate(e.date)} {account ? `· ${account.name}` : ''}</p>
+                    {e.hasGST && e.gstAmount && <p className="text-xs text-purple-600 mt-0.5">GST: ₹{fmt(e.gstAmount)}</p>}
                   </div>
-                  <p className="text-sm font-medium text-gray-800">{e.description || cat?.name}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(e.date)} {account ? `· ${account.name}` : ''}</p>
-                  {e.hasGST && e.gstAmount && <p className="text-xs text-purple-600 mt-0.5">GST: ₹{fmt(e.gstAmount)}</p>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-base font-bold text-red-600">₹{fmt(e.amount)}</p>
-                  <button onClick={() => { if (confirm('Delete?')) app.deleteItem('expenses', e.id); }} className="text-gray-300 hover:text-red-400 p-1">
-                    <Trash2 size={15} />
-                  </button>
+                  <div className="flex items-center gap-1 ml-2">
+                    <p className="text-base font-bold text-red-600 mr-1">₹{fmt(e.amount)}</p>
+                    <button title="Download voucher" onClick={() => {
+                      const pdf = buildFinancePDF('expense', e, { categoryName: cat?.name, accountName: account?.name }, app.companyInfo||{});
+                      pdf.save(`Expense-${e.date}-${(e.id||'').slice(-5)}.pdf`);
+                    }} className="text-blue-400 hover:text-blue-600 p-1"><Download size={14}/></button>
+                    <button title="Share" onClick={async () => {
+                      const pdf = buildFinancePDF('expense', e, { categoryName: cat?.name, accountName: account?.name }, app.companyInfo||{});
+                      await shareOrDownloadPDF(pdf, `Expense-${e.date}.pdf`);
+                    }} className="text-purple-400 hover:text-purple-600 p-1"><Share2 size={14}/></button>
+                    <button onClick={() => { if (confirm('Delete?')) app.deleteItem('expenses', e.id); }} className="text-gray-300 hover:text-red-400 p-1"><Trash2 size={15}/></button>
+                  </div>
                 </div>
               </div>
             );

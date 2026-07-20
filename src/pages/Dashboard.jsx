@@ -135,6 +135,19 @@ export default function Dashboard({ navigate }) {
 
       <div className="px-4 -mt-3">
 
+        {/* Quick Actions — always visible */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-3 p-3">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2.5">Quick Actions</h2>
+          <div className="grid grid-cols-2 gap-2">
+            <ActionBtn label="Add Production" icon={Hammer}      color="bg-amber-700"  onClick={() => navigate('production')} />
+            <ActionBtn label="Add Material"   icon={Package}     color="bg-blue-600"   onClick={() => navigate('materials')} />
+            <ActionBtn label="Record Payment" icon={TrendingUp}  color="bg-green-600"  onClick={() => navigate('finance')} />
+            <ActionBtn label="Add Expense"    icon={Receipt}     color="bg-red-500"    onClick={() => navigate('finance')} />
+            <ActionBtn label="New Quote"      icon={FileText}    color="bg-purple-600" onClick={() => navigate('sales', 'new_quote')} />
+            <ActionBtn label="New Invoice"    icon={DollarSign}  color="bg-teal-600"   onClick={() => navigate('sales', 'new_invoice')} />
+          </div>
+        </div>
+
         {/* Section tabs */}
         <div className="flex bg-white rounded-xl shadow-sm border border-gray-100 p-1 mb-4">
           {[['today', 'Today'], ['stock', 'Stock'], ['orders', 'Orders'], ['kpis', 'KPIs']].map(([id, label]) => (
@@ -275,18 +288,6 @@ export default function Dashboard({ navigate }) {
               </div>
             )}
 
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-4 p-4">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h2>
-              <div className="grid grid-cols-2 gap-2">
-                <ActionBtn label="Add Production" icon={Hammer}      color="bg-amber-700"  onClick={() => navigate('production')} />
-                <ActionBtn label="Add Material"   icon={Package}     color="bg-blue-600"   onClick={() => navigate('materials')} />
-                <ActionBtn label="Record Payment" icon={TrendingUp}  color="bg-green-600"  onClick={() => navigate('finance')} />
-                <ActionBtn label="Add Expense"    icon={Receipt}     color="bg-red-500"    onClick={() => navigate('finance')} />
-                <ActionBtn label="New Quote"      icon={FileText}    color="bg-purple-600" onClick={() => navigate('sales', 'new_quote')} />
-                <ActionBtn label="New Invoice"    icon={DollarSign}  color="bg-teal-600"   onClick={() => navigate('sales', 'new_invoice')} />
-              </div>
-            </div>
           </>
         )}
 
