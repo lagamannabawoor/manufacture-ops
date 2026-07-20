@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Eye, Pencil, Printer, FileText, Receipt, ArrowRight, X } from 'lucide-react';
+import { Plus, Trash2, Eye, Pencil, Printer, FileText, Receipt, ArrowRight, X, Download, Share2, Loader } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 function fmt(n) { return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0); }
@@ -524,6 +526,36 @@ function LineItemRow({ item, idx, products, productCategories, onChange, onRemov
   );
 }
 
+// ── PDF helpers ───────────────────────────────────────────────────────────────
+function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+async function buildPDF(elementId, filename) {
+  const el = document.getElementById(elementId);
+  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pw = pdf.internal.pageSize.getWidth();
+  const ph = pdf.internal.pageSize.getHeight();
+  const iw = (canvas.height * pw) / canvas.width;
+  let pos = 0, left = iw;
+  pdf.addImage(imgData, 'PNG', 0, 0, pw, iw);
+  left -= ph;
+  while (left > 0) {
+    pos -= ph;
+    pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 0, pos, pw, iw);
+    left -= ph;
+  }
+  return pdf;
+}
+
 // ── View / Print document ─────────────────────────────────────────────────────
 function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdit }) {
   const ci = companyInfo || {};
@@ -533,6 +565,7 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
   const coPhone   = ci.phone   || '';
   const coEmail   = ci.email   || '';
   const coGSTIN   = ci.gstin   || '';
+  const [pdfBusy, setPdfBusy] = useState(null); // 'download' | 'share' | null
   const isQuote = type === 'quote';
   const docNo = isQuote ? doc.quoteNumber : doc.invoiceNumber;
   const { subtotal, discAmt, taxable, cgst, sgst, igst, total } = calcDoc(
@@ -540,6 +573,57 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
   );
   const paymentTermLabel = PAYMENT_TERMS_OPTIONS.find(p => p.id === doc.paymentTerms)?.label || doc.paymentTerms || '';
   const statusInfo = isQuote ? QUOTE_STATUS[doc.status] : INVOICE_STATUS[doc.status];
+
+  async function handleDownload() {
+    setPdfBusy('download');
+    try {
+      const pdf = await buildPDF('sales-print-view', docNo);
+      pdf.save(`${docNo}.pdf`);
+    } catch (e) { alert('Could not generate PDF: ' + e.message); }
+    finally { setPdfBusy(null); }
+  }
+
+  async function handleShare() {
+    setPdfBusy('share');
+    try {
+      const pdf = await buildPDF('sales-print-view', docNo);
+      const blob = pdf.output('blob');
+      const filename = `${docNo}.pdf`;
+
+      let shared = false;
+
+      // Try Capacitor Share (Android native)
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        const b64 = await blobToBase64(blob);
+        await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+        const uri = await Filesystem.getUri({ directory: Directory.Cache, path: filename });
+        await Share.share({
+          title: `${docNo} – ${doc.customerName || ''}`,
+          text: `Please find the ${isQuote ? 'quotation' : 'invoice'} ${docNo} attached.`,
+          files: [uri.uri],
+          dialogTitle: 'Share via',
+        });
+        shared = true;
+      } catch (_) {}
+
+      // Fallback: Web Share API
+      if (!shared && navigator.canShare) {
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: docNo, files: [file] });
+          shared = true;
+        }
+      }
+
+      // Last fallback: just download
+      if (!shared) {
+        pdf.save(filename);
+      }
+    } catch (e) { alert('Could not share: ' + e.message); }
+    finally { setPdfBusy(null); }
+  }
 
   function printDoc() {
     document.getElementById('__um_ps')?.remove();
@@ -600,9 +684,17 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
       <div className="flex items-center justify-between px-4 py-3 bg-amber-700 text-white">
         <button onClick={onClose} className="p-1.5"><X size={20} /></button>
         <span className="font-bold text-base">{docNo}</span>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           {onEdit && <button onClick={onEdit} className="p-1.5 bg-white/20 rounded-full"><Pencil size={16} /></button>}
-          <button onClick={printDoc} className="p-1.5 bg-white/20 rounded-full"><Printer size={16} /></button>
+          <button onClick={handleDownload} disabled={!!pdfBusy}
+            className="p-1.5 bg-white/20 rounded-full disabled:opacity-50" title="Download PDF">
+            {pdfBusy === 'download' ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
+          </button>
+          <button onClick={handleShare} disabled={!!pdfBusy}
+            className="p-1.5 bg-white/20 rounded-full disabled:opacity-50" title="Share via WhatsApp">
+            {pdfBusy === 'share' ? <Loader size={16} className="animate-spin" /> : <Share2 size={16} />}
+          </button>
+          <button onClick={printDoc} className="p-1.5 bg-white/20 rounded-full" title="Print"><Printer size={16} /></button>
         </div>
       </div>
 
