@@ -799,6 +799,7 @@ function BackupRestorePanel({ onClose }) {
   const [busy, setBusy]       = useState('');   // '' | 'exporting' | 'reading' | 'restoring'
   const [preview, setPreview] = useState(null); // null | { exportedAt, counts, rawData }
   const fileRef = useRef(null);
+  if (app.currentUser?.username !== 'lbawoor') return null;
 
   async function handleExport() {
     setBusy('exporting');
