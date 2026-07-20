@@ -13,8 +13,8 @@ const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '761810394116-9vt
 const STORAGE_KEY = 'mfg_ops_data';
 
 export const ROLES = {
-  admin:      { label: 'Admin',      tabs: ['dashboard','production','materials','finance','reports','settings'], canWrite: true,  canApprove: true,  canSettings: true  },
-  accountant: { label: 'Accountant', tabs: ['dashboard','production','materials','finance','reports'],            canWrite: true,  canApprove: true,  canSettings: false },
+  admin:      { label: 'Admin',      tabs: ['dashboard','production','materials','finance','sales','reports','settings'], canWrite: true,  canApprove: true,  canSettings: true  },
+  accountant: { label: 'Accountant', tabs: ['dashboard','production','materials','finance','sales','reports'],            canWrite: true,  canApprove: true,  canSettings: false },
   labour:     { label: 'Labour',     tabs: ['production'],                                                       canWrite: false, canApprove: false, canSettings: false },
   guest:      { label: 'Guest',      tabs: ['dashboard','production','materials','finance','reports'],            canWrite: false, canApprove: false, canSettings: false },
 };
@@ -75,6 +75,8 @@ const SEED = {
   ],
   productionEntries: [],
   materialPurchases: [],
+  quotes: [],
+  invoices: [],
   laborPayments: [],
   orders: [],
   orderPayments: [],

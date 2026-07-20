@@ -9,6 +9,7 @@ import Materials from './pages/Materials';
 import Finance from './pages/Finance';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Sales from './pages/Sales';
 
 const ROLE_COLORS = {
   admin:      'bg-red-100 text-red-700',
@@ -65,6 +66,7 @@ function AppShell() {
     production: <Production navigate={navigate} />,
     materials:  <Materials navigate={navigate} />,
     finance:    <Finance navigate={navigate} />,
+    sales:      <Sales navigate={navigate} />,
     reports:    <Reports navigate={navigate} />,
     settings:   <Settings navigate={navigate} />,
   };
