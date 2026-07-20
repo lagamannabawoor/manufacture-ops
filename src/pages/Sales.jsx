@@ -653,7 +653,7 @@ function buildPDF(docData, type, ci) {
 
   // ─── BILL TO ───────────────────────────────────────────────────────────────
   needPage(30);
-  pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...LT);
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
   pdf.text('BILL TO', ML, y); y += 4.5;
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
   pdf.text(docData.customerName || '—', ML, y); y += 5;
@@ -727,7 +727,7 @@ function buildPDF(docData, type, ci) {
   // ─── NOTES ─────────────────────────────────────────────────────────────────
   if (docData.notes) {
     needPage(20);
-    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...LT);
+    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
     pdf.text('NOTES', ML, y); y += 4;
     pdf.setFontSize(8.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
     const nl = pdf.splitTextToSize(docData.notes, CW);
@@ -737,36 +737,25 @@ function buildPDF(docData, type, ci) {
   // ─── TERMS ─────────────────────────────────────────────────────────────────
   if (isQ && docData.terms) {
     needPage(24);
-    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...LT);
+    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
     pdf.text('TERMS & CONDITIONS', ML, y); y += 4;
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
     const tl = pdf.splitTextToSize(docData.terms, CW);
     pdf.text(tl, ML, y); y += tl.length * 4 + 5;
   }
 
-  // ─── SIGNING AUTHORITIES ───────────────────────────────────────────────────
+  // ─── SIGNING AUTHORITIES ─ Authorised Signatory only (right-aligned) ────────
   needPage(38);
   y += 5;
   pdf.setDrawColor(...LT); pdf.setLineWidth(0.3);
   pdf.line(ML, y, W - MR, y); y += 15;
-  const sw = CW / 3;
-  [['Customer Signature', 'Name & Seal'], ['Prepared By', ''], ['Authorised Signatory', 'For ' + coName]]
-    .forEach(([label, sub], i) => {
-      const cx = ML + i * sw + sw / 2;
-      const sigX = ML + i * sw + 4;
-      const sigW = sw - 8;
-      if (i === 2 && ci?.signature) {
-        try { pdf.addImage(ci.signature, 'PNG', sigX, y - 14, sigW, 12); } catch(e) {}
-      }
-      pdf.setDrawColor(...MD); pdf.setLineWidth(0.4);
-      pdf.line(cx - sw/2 + 6, y, cx + sw/2 - 6, y);
-      pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
-      pdf.text(label, cx, y + 5, { align: 'center' });
-      if (sub) {
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
-        pdf.text(sub, cx, y + 9, { align: 'center' });
-      }
-    });
+  const sw = CW / 3; const sx = W - MR - sw;
+  if (ci?.signature) { try { pdf.addImage(ci.signature, 'PNG', sx + 4, y - 14, sw - 8, 12); } catch(e) {} }
+  pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(sx, y, W - MR, y);
+  pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
+  pdf.text('Authorised Signatory', sx + sw/2, y + 5, { align: 'center' });
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+  pdf.text('For ' + coName, sx + sw/2, y + 9, { align: 'center' });
 
   // ─── PAGE FOOTER ───────────────────────────────────────────────────────────
   const tp = pdf.internal.getNumberOfPages();
@@ -1060,20 +1049,14 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
             </div>
           )}
 
-          {/* Signing Authorities */}
-          <div className="mt-8 pt-5 border-t border-gray-200">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              {[{ label: 'Customer Signature', sub: 'Name & Seal' },
-                { label: 'Prepared By',        sub: '' },
-                { label: 'Authorised Signatory', sub: `For ${coName}` }].map(s => (
-                <div key={s.label} className="sign-box">
-                  <div className="h-10" />
-                  <div className="border-t border-gray-400 pt-1.5">
-                    <p className="text-[10px] font-bold text-gray-600">{s.label}</p>
-                    {s.sub && <p className="text-[9px] text-gray-400 mt-0.5">{s.sub}</p>}
-                  </div>
-                </div>
-              ))}
+          {/* Signing Authorities — Authorised Signatory only */}
+          <div className="mt-8 pt-5 border-t border-gray-200 flex justify-end">
+            <div className="w-1/3 text-center sign-box">
+              {ci.signature && <img src={ci.signature} alt="Signature" className="h-10 mx-auto mb-1 object-contain" />}
+              <div className="border-t border-gray-400 pt-1.5">
+                <p className="text-[10px] font-bold text-gray-600">Authorised Signatory</p>
+                <p className="text-[9px] text-gray-400 mt-0.5">For {coName}</p>
+              </div>
             </div>
           </div>
 
