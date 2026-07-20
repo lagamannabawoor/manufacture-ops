@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download } from 'lucide-react';
+import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download, Share2 } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -165,7 +165,8 @@ export default function Materials() {
   const [form, setForm]               = useState(freshForm);
   const [activeTab, setActiveTab]     = useState('stock');
   const [capturing, setCapturing]     = useState(false);
-  const [viewingBill, setViewingBill] = useState(null); // base64 image to preview
+  const [viewingPurchase, setViewingPurchase] = useState(null); // purchase entry to view
+  const [vBusy, setVBusy] = useState(false);
   const fileRef = useRef(null);
 
   function set(k, v) {
@@ -202,10 +203,32 @@ export default function Materials() {
     finally { setCapturing(false); e.target.value = ''; }
   }
 
-  function downloadURD(purchase) {
+  async function shareOrDownloadPhoto(base64JPEG, filename) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const { Share } = await import('@capacitor/share');
+      const result = await Filesystem.writeFile({ path: filename, data: base64JPEG, directory: Directory.Cache });
+      await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share / Save Photo' });
+    } catch {
+      const link = document.createElement('a');
+      link.href = `data:image/jpeg;base64,${base64JPEG}`; link.download = filename; link.click();
+    }
+  }
+
+  async function shareURDPDF(purchase) {
     const mat = app.materialTypes.find(m => m.id === purchase.materialTypeId);
     const pdf = buildURDPDF(purchase, mat?.name, mat?.unit, app.companyInfo || {});
-    pdf.save(`${purchase.billNumber || 'URD'}.pdf`);
+    const blob = pdf.output('blob');
+    const filename = `${purchase.billNumber || 'URD'}.pdf`;
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const { Share } = await import('@capacitor/share');
+      const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+      const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+      await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share URD Bill' });
+    } catch {
+      pdf.save(filename);
+    }
   }
 
   function save() {
@@ -372,14 +395,12 @@ export default function Materials() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          {p.billMode === 'uploaded' && (
-                            <button onClick={() => setViewingBill(p.billImage)}
-                              className="text-blue-500 p-1" title="View Bill"><Eye size={15}/></button>
-                          )}
-                          {p.billMode === 'urd' && (
-                            <button onClick={() => downloadURD(p)}
-                              className="text-amber-600 p-1" title="Download URD"><Download size={15}/></button>
+                        <div className="flex items-center gap-2">
+                          {(p.billMode === 'uploaded' || p.billMode === 'urd') && (
+                            <button onClick={() => setViewingPurchase(p)}
+                              className="flex items-center gap-1 text-blue-600 text-xs font-bold px-2.5 py-1.5 border border-blue-200 rounded-lg bg-blue-50 active:scale-95 transition-transform">
+                              <Eye size={13}/> View
+                            </button>
                           )}
                           <button onClick={() => { if (confirm('Delete this purchase?')) app.deleteItem('materialPurchases', p.id); }}
                             className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
@@ -491,15 +512,74 @@ export default function Materials() {
         </Modal>
       )}
 
-      {/* Bill photo viewer */}
-      {viewingBill && (
-        <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-            <p className="text-white font-semibold text-sm">Bill Photo</p>
-            <button onClick={() => setViewingBill(null)} className="text-white p-1"><X size={22}/></button>
+      {/* Bill / URD viewer */}
+      {viewingPurchase && (
+        <div className="fixed inset-0 z-[300] bg-gray-50 flex flex-col">
+          <div className="flex items-center gap-2 px-3 py-3 bg-white border-b border-gray-100 shadow-sm shrink-0">
+            <button onClick={() => setViewingPurchase(null)} className="p-1.5 text-gray-600"><X size={20}/></button>
+            <span className="flex-1 font-bold text-gray-800 text-sm truncate">
+              {viewingPurchase.billMode === 'uploaded' ? 'Bill Photo' : 'URD Self Invoice'}
+            </span>
+            {viewingPurchase.billMode === 'uploaded' && (
+              <>
+                <button onClick={async () => { setVBusy(true); try { await shareOrDownloadPhoto(viewingPurchase.billImage, `BillPhoto-${viewingPurchase.date}.jpg`); } finally { setVBusy(false); } }}
+                  disabled={vBusy}
+                  className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:scale-95">
+                  <Download size={13}/> Save
+                </button>
+                <button onClick={async () => { setVBusy(true); try { await shareOrDownloadPhoto(viewingPurchase.billImage, `BillPhoto-${viewingPurchase.date}.jpg`); } finally { setVBusy(false); } }}
+                  disabled={vBusy}
+                  className="flex items-center gap-1.5 bg-purple-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:scale-95">
+                  <Share2 size={13}/> Share
+                </button>
+              </>
+            )}
+            {viewingPurchase.billMode === 'urd' && (
+              <>
+                <button onClick={async () => { setVBusy(true); try { await shareURDPDF(viewingPurchase); } finally { setVBusy(false); } }}
+                  disabled={vBusy}
+                  className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:scale-95">
+                  <Download size={13}/> Save
+                </button>
+                <button onClick={async () => { setVBusy(true); try { await shareURDPDF(viewingPurchase); } finally { setVBusy(false); } }}
+                  disabled={vBusy}
+                  className="flex items-center gap-1.5 bg-purple-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:scale-95">
+                  <Share2 size={13}/> Share
+                </button>
+              </>
+            )}
           </div>
-          <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
-            <img src={`data:image/jpeg;base64,${viewingBill}`} alt="Bill" className="w-full max-w-xl rounded-xl shadow-xl" />
+          <div className="flex-1 overflow-y-auto p-4">
+            {viewingPurchase.billMode === 'uploaded' && (
+              <img src={`data:image/jpeg;base64,${viewingPurchase.billImage}`} alt="Bill" className="w-full rounded-xl shadow-xl" />
+            )}
+            {viewingPurchase.billMode === 'urd' && (() => {
+              const mat = app.materialTypes.find(m => m.id === viewingPurchase.materialTypeId);
+              const account = app.bankAccounts.find(b => b.id === viewingPurchase.bankAccountId);
+              return (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="bg-amber-800 px-4 pt-4 pb-3">
+                    <p className="font-bold text-white">{app.companyInfo?.name || 'UrbanMud Bricks and Blocks'}</p>
+                    <p className="text-amber-200 text-xs mt-0.5 whitespace-pre-line">{app.companyInfo?.address || 'Bhaktharahalli, near Hoskote, Bangalore - 562114'}</p>
+                  </div>
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-center text-sm font-bold py-2 rounded-xl bg-amber-100 text-amber-800">URD Self Invoice — Purchase from Unregistered Dealer</p>
+                  </div>
+                  <div className="px-4 py-4 space-y-3">
+                    {[['Bill No.', viewingPurchase.billNumber], ['Date', viewingPurchase.date], ['Material', mat?.name], ['Quantity', `${viewingPurchase.quantity} ${mat?.unit||''}`], ['Rate', viewingPurchase.ratePerUnit ? `₹${viewingPurchase.ratePerUnit}/${mat?.unit}` : null], ['Supplier', viewingPurchase.supplier], ['Account', account?.name], ['Notes', viewingPurchase.notes]].filter(([,v]) => v).map(([l,v],i) => (
+                      <div key={i} className="flex justify-between items-start gap-3">
+                        <span className="text-xs text-gray-500 shrink-0 w-28">{l}</span>
+                        <span className="text-xs font-semibold text-gray-800 text-right flex-1">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mx-4 mb-4 pt-3 border-t-2 border-amber-700 flex justify-between items-center">
+                    <span className="font-bold text-gray-800">Total Amount</span>
+                    <span className="text-xl font-bold text-amber-800">₹{viewingPurchase.totalAmount ? new Intl.NumberFormat('en-IN').format(viewingPurchase.totalAmount) : '—'}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

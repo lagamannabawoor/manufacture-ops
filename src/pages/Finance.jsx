@@ -50,6 +50,70 @@ async function shareOrDownloadPDF(pdf, filename) {
   }
 }
 
+async function shareOrDownloadPhoto(base64JPEG, filename) {
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+    const result = await Filesystem.writeFile({ path: filename, data: base64JPEG, directory: Directory.Cache });
+    await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share / Save Photo' });
+  } catch {
+    const link = document.createElement('a');
+    link.href = `data:image/jpeg;base64,${base64JPEG}`; link.download = filename; link.click();
+  }
+}
+
+function ReceiptViewer({ title, children, onDownload, onShare, onClose, busy }) {
+  return (
+    <div className="fixed inset-0 z-[300] bg-gray-50 flex flex-col">
+      <div className="flex items-center gap-2 px-3 py-3 bg-white border-b border-gray-100 shadow-sm shrink-0">
+        <button onClick={onClose} className="p-1.5 text-gray-600"><X size={20}/></button>
+        <span className="flex-1 font-bold text-gray-800 text-sm truncate">{title}</span>
+        <button onClick={onDownload} disabled={!!busy}
+          className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">
+          <Download size={13}/> Save
+        </button>
+        <button onClick={onShare} disabled={!!busy}
+          className="flex items-center gap-1.5 bg-purple-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">
+          <Share2 size={13}/> Share
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">{children}</div>
+    </div>
+  );
+}
+
+function ReceiptHTML({ docTitle, docColor, rows, amount, amountColor, refId, ci, extra }) {
+  const coName = ci?.name || 'UrbanMud Bricks and Blocks';
+  const coAddr = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-3">
+      <div className="bg-amber-800 px-4 pt-4 pb-3">
+        <p className="font-bold text-white">{coName}</p>
+        <p className="text-amber-200 text-xs mt-0.5 whitespace-pre-line">{coAddr}</p>
+      </div>
+      <div className="px-4 py-3 border-b border-gray-100">
+        <p className={`text-center text-sm font-bold py-2 rounded-xl ${docColor}`}>{docTitle}</p>
+      </div>
+      <div className="px-4 py-4 space-y-3">
+        {rows.filter(([,v]) => v !== undefined && v !== null && v !== '').map(([l, v], i) => (
+          <div key={i} className="flex justify-between items-start gap-3">
+            <span className="text-xs text-gray-500 shrink-0 w-28">{l}</span>
+            <span className="text-xs font-semibold text-gray-800 text-right flex-1">{v}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mx-4 mb-4 pt-3 border-t-2 border-amber-700 flex justify-between items-center">
+        <span className="font-bold text-gray-800">Total Amount</span>
+        <span className={`text-xl font-bold ${amountColor || 'text-amber-800'}`}>₹{amount}</span>
+      </div>
+      {extra}
+      <div className="bg-gray-50 px-4 py-2.5 border-t border-gray-100">
+        <p className="text-[10px] text-gray-400 text-center">Ref: {refId}</p>
+      </div>
+    </div>
+  );
+}
+
 function buildFinancePDF(type, entry, meta, ci) {
   const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
   const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
@@ -289,6 +353,8 @@ function LaborTab() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ date: todayISO(), laborGroupId: '', amount: '', paymentType: 'regular', bankAccountId: '', notes: '' });
+  const [viewing, setViewing] = useState(null); // { p, group, account }
+  const [vBusy, setVBusy] = useState(false);
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
   function save() {
     if (!form.laborGroupId || !form.amount) return alert('Group and amount required.');
@@ -358,16 +424,12 @@ function LaborTab() {
                     <p className="text-xs text-gray-400">{fmtDate(p.date)} {account ? `· ${account.name}` : ''}</p>
                     {p.notes && <p className="text-xs text-gray-500 mt-1">{p.notes}</p>}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <p className="text-base font-bold text-red-600 mr-1">₹{fmt(p.amount)}</p>
-                    <button title="Download voucher" onClick={() => {
-                      const pdf = buildFinancePDF('labor', p, { groupName: group?.name, accountName: account?.name }, app.companyInfo||{});
-                      pdf.save(`Labour-${p.date}-${(p.id||'').slice(-5)}.pdf`);
-                    }} className="text-blue-400 hover:text-blue-600 p-1"><Download size={14}/></button>
-                    <button title="Share" onClick={async () => {
-                      const pdf = buildFinancePDF('labor', p, { groupName: group?.name, accountName: account?.name }, app.companyInfo||{});
-                      await shareOrDownloadPDF(pdf, `Labour-${p.date}.pdf`);
-                    }} className="text-purple-400 hover:text-purple-600 p-1"><Share2 size={14}/></button>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-bold text-red-600">₹{fmt(p.amount)}</p>
+                    <button onClick={() => setViewing({ p, group, account })}
+                      className="flex items-center gap-1 text-blue-600 text-xs font-bold px-2.5 py-1.5 border border-blue-200 rounded-lg bg-blue-50 active:scale-95 transition-transform">
+                      <Eye size={13}/> View
+                    </button>
                     <button onClick={() => { if (confirm('Delete?')) app.deleteItem('laborPayments', p.id); }} className="text-gray-300 hover:text-red-400 p-1"><Trash2 size={15}/></button>
                   </div>
                 </div>
@@ -375,6 +437,32 @@ function LaborTab() {
             );
           })}
         </div>
+      )}
+
+      {viewing && (
+        <ReceiptViewer
+          title="Labour Payment Voucher"
+          busy={vBusy}
+          onClose={() => setViewing(null)}
+          onDownload={async () => { setVBusy(true); try { const pdf = buildFinancePDF('labor', viewing.p, { groupName: viewing.group?.name, accountName: viewing.account?.name }, app.companyInfo||{}); await shareOrDownloadPDF(pdf, `Labour-${viewing.p.date}-${(viewing.p.id||'').slice(-5)}.pdf`); } finally { setVBusy(false); } }}
+          onShare={async () => { setVBusy(true); try { const pdf = buildFinancePDF('labor', viewing.p, { groupName: viewing.group?.name, accountName: viewing.account?.name }, app.companyInfo||{}); await shareOrDownloadPDF(pdf, `Labour-${viewing.p.date}.pdf`); } finally { setVBusy(false); } }}
+        >
+          <ReceiptHTML
+            docTitle="Labour Payment Voucher"
+            docColor="bg-indigo-100 text-indigo-800"
+            rows={[
+              ['Date', fmtDate(viewing.p.date)],
+              ['Labour Group', viewing.group?.name],
+              ['Payment Type', (viewing.p.paymentType||'').replace(/^\w/, c => c.toUpperCase())],
+              ['Bank Account', viewing.account?.name],
+              ['Notes', viewing.p.notes],
+            ]}
+            amount={fmt(viewing.p.amount)}
+            amountColor="text-green-700"
+            refId={`LBR-${(viewing.p.id||'').slice(-8).toUpperCase()}`}
+            ci={app.companyInfo}
+          />
+        </ReceiptViewer>
       )}
 
       {showModal && (
@@ -435,6 +523,8 @@ function OrdersTab() {
     setShowPayModal(false);
   }
 
+  const [viewing, setViewing] = useState(null); // { p, order, prod, pAcc }
+  const [vBusy, setVBusy] = useState(false);
   const sorted = [...app.orders].sort((a, b) => (b.id > a.id ? 1 : -1));
   const statusColors = { pending: 'bg-amber-50 text-amber-700', in_progress: 'bg-blue-50 text-blue-700', completed: 'bg-green-50 text-green-700' };
 
@@ -513,20 +603,14 @@ function OrdersTab() {
                       return (
                         <div key={p.id} className="flex items-center justify-between text-xs">
                           <span className="text-gray-500">{fmtDate(p.date)}</span>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5">
                             <span className={p.direction === 'received' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
                               {p.direction === 'received' ? '+' : '-'}₹{fmt(p.amount)}
                             </span>
-                            <button title="Download receipt" onClick={() => {
-                              const pdf = buildFinancePDF(p.direction === 'received' ? 'payment_received' : 'payment_paid', p,
-                                { orderNumber: order.orderNumber, customerName: order.customerName, productName: prod?.name, accountName: pAcc?.name }, app.companyInfo||{});
-                              pdf.save(`Receipt-${p.date}-${(p.id||'').slice(-5)}.pdf`);
-                            }} className="text-blue-400 p-0.5 hover:text-blue-600"><Download size={11}/></button>
-                            <button title="Share" onClick={async () => {
-                              const pdf = buildFinancePDF(p.direction === 'received' ? 'payment_received' : 'payment_paid', p,
-                                { orderNumber: order.orderNumber, customerName: order.customerName, productName: prod?.name, accountName: pAcc?.name }, app.companyInfo||{});
-                              await shareOrDownloadPDF(pdf, `Receipt-${p.date}.pdf`);
-                            }} className="text-purple-400 p-0.5 hover:text-purple-600"><Share2 size={11}/></button>
+                            <button onClick={() => setViewing({ p, order, prod, pAcc })}
+                              className="flex items-center gap-0.5 text-blue-600 text-[10px] font-bold px-1.5 py-1 border border-blue-200 rounded-md bg-blue-50 active:scale-95">
+                              <Eye size={10}/> View
+                            </button>
                           </div>
                         </div>
                       );
@@ -538,6 +622,38 @@ function OrdersTab() {
           })}
         </div>
       )}
+
+      {viewing && (() => {
+        const pType = viewing.p.direction === 'received' ? 'payment_received' : 'payment_paid';
+        const fname = `Receipt-${viewing.p.date}-${(viewing.p.id||'').slice(-5)}.pdf`;
+        const mkPdf = () => buildFinancePDF(pType, viewing.p, { orderNumber: viewing.order.orderNumber, customerName: viewing.order.customerName, productName: viewing.prod?.name, accountName: viewing.pAcc?.name }, app.companyInfo||{});
+        return (
+          <ReceiptViewer
+            title={viewing.p.direction === 'received' ? 'Payment Receipt' : 'Payment Order'}
+            busy={vBusy}
+            onClose={() => setViewing(null)}
+            onDownload={async () => { setVBusy(true); try { await shareOrDownloadPDF(mkPdf(), fname); } finally { setVBusy(false); } }}
+            onShare={async () => { setVBusy(true); try { await shareOrDownloadPDF(mkPdf(), fname); } finally { setVBusy(false); } }}
+          >
+            <ReceiptHTML
+              docTitle={viewing.p.direction === 'received' ? 'Payment Receipt' : 'Payment Order'}
+              docColor={viewing.p.direction === 'received' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
+              rows={[
+                ['Date', fmtDate(viewing.p.date)],
+                ['Order #', viewing.order.orderNumber],
+                ['Customer', viewing.order.customerName],
+                ['Product', viewing.prod?.name],
+                ['Bank Account', viewing.pAcc?.name],
+                ['Notes', viewing.p.notes],
+              ]}
+              amount={fmt(viewing.p.amount)}
+              amountColor={viewing.p.direction === 'received' ? 'text-green-700' : 'text-red-600'}
+              refId={`RCT-${(viewing.p.id||'').slice(-8).toUpperCase()}`}
+              ci={app.companyInfo}
+            />
+          </ReceiptViewer>
+        );
+      })()}
 
       {showOrderModal && (
         <Modal title="Add New Order" onClose={() => setShowOrderModal(false)}>
@@ -607,7 +723,8 @@ function ExpensesTab() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
   const [capturing, setCapturing]     = useState(false);
-  const [viewingBill, setViewingBill] = useState(null);
+  const [viewing, setViewing]         = useState(null);
+  const [vBusy, setVBusy]             = useState(false);
   const [form, setForm] = useState(freshExpenseForm);
   const fileRef = useRef(null);
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -628,12 +745,6 @@ function ExpensesTab() {
     try { const b64 = await compressImage(file); set('billImage', b64); set('billMode', 'uploaded'); }
     catch (err) { alert('Could not process image: ' + err.message); }
     finally { setCapturing(false); e.target.value = ''; }
-  }
-
-  function downloadURDExpense(e) {
-    const cat = app.expenseCategories.find(c => c.id === e.categoryId);
-    const pdf = buildExpenseURDPDF(e, { categoryName: cat?.name }, app.companyInfo||{});
-    pdf.save(`ExpenseURD-${e.date}-${(e.id||'').slice(-5)}.pdf`);
   }
 
   function save() {
@@ -680,16 +791,12 @@ function ExpensesTab() {
                     <p className="text-xs text-gray-400 mt-0.5">{fmtDate(e.date)} {account ? `· ${account.name}` : ''}</p>
                     {e.hasGST && e.gstAmount && <p className="text-xs text-purple-600 mt-0.5">GST: ₹{fmt(e.gstAmount)}</p>}
                   </div>
-                  <div className="flex items-center gap-1 ml-2">
-                    <p className="text-base font-bold text-red-600 mr-1">₹{fmt(e.amount)}</p>
-                    <button title="Download internal voucher" onClick={() => {
-                      const pdf = buildFinancePDF('expense', e, { categoryName: cat?.name, accountName: account?.name }, app.companyInfo||{});
-                      pdf.save(`Expense-${e.date}-${(e.id||'').slice(-5)}.pdf`);
-                    }} className="text-blue-400 hover:text-blue-600 p-1"><Download size={14}/></button>
-                    <button title="Share voucher" onClick={async () => {
-                      const pdf = buildFinancePDF('expense', e, { categoryName: cat?.name, accountName: account?.name }, app.companyInfo||{});
-                      await shareOrDownloadPDF(pdf, `Expense-${e.date}.pdf`);
-                    }} className="text-purple-400 hover:text-purple-600 p-1"><Share2 size={14}/></button>
+                  <div className="flex items-center gap-2 ml-2">
+                    <p className="text-base font-bold text-red-600">₹{fmt(e.amount)}</p>
+                    <button onClick={() => setViewing(e)}
+                      className="flex items-center gap-1 text-blue-600 text-xs font-bold px-2.5 py-1.5 border border-blue-200 rounded-lg bg-blue-50 active:scale-95 transition-transform">
+                      <Eye size={13}/> View
+                    </button>
                     <button onClick={() => { if (confirm('Delete?')) app.deleteItem('expenses', e.id); }} className="text-gray-300 hover:text-red-400 p-1"><Trash2 size={15}/></button>
                   </div>
                 </div>
@@ -704,14 +811,7 @@ function ExpensesTab() {
                       <span className="text-[9px] bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5"><AlertTriangle size={9}/> No Bill</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
-                    {e.billMode === 'uploaded' && e.billImage && (
-                      <button onClick={() => setViewingBill(e.billImage)} className="text-blue-500 p-1" title="View Bill"><Eye size={15}/></button>
-                    )}
-                    {e.billMode === 'urd' && (
-                      <button onClick={() => downloadURDExpense(e)} className="text-amber-600 p-1" title="Download URD Bill"><Download size={15}/></button>
-                    )}
-                  </div>
+                  <div/>
                 </div>
               </div>
             );
@@ -789,18 +889,63 @@ function ExpensesTab() {
         </Modal>
       )}
 
-      {/* Bill photo fullscreen viewer */}
-      {viewingBill && (
-        <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-            <p className="text-white font-semibold text-sm">Bill Photo</p>
-            <button onClick={() => setViewingBill(null)} className="text-white p-1"><X size={22}/></button>
-          </div>
-          <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
-            <img src={`data:image/jpeg;base64,${viewingBill}`} alt="Bill" className="w-full max-w-xl rounded-xl shadow-xl" />
-          </div>
-        </div>
-      )}
+      {viewing && (() => {
+        const vCat = app.expenseCategories.find(c => c.id === viewing.categoryId);
+        const vAcc = app.bankAccounts.find(b => b.id === viewing.bankAccountId);
+        const fname = `Expense-${viewing.date}-${(viewing.id||'').slice(-5)}.pdf`;
+        const mkPdf = () => buildFinancePDF('expense', viewing, { categoryName: vCat?.name, accountName: vAcc?.name }, app.companyInfo||{});
+        return (
+          <ReceiptViewer
+            title="Expense Receipt"
+            busy={vBusy}
+            onClose={() => setViewing(null)}
+            onDownload={async () => { setVBusy(true); try { await shareOrDownloadPDF(mkPdf(), fname); } finally { setVBusy(false); } }}
+            onShare={async () => { setVBusy(true); try { await shareOrDownloadPDF(mkPdf(), fname); } finally { setVBusy(false); } }}
+          >
+            <ReceiptHTML
+              docTitle="Expense Voucher"
+              docColor="bg-red-100 text-red-800"
+              rows={[
+                ['Date', fmtDate(viewing.date)],
+                ['Category', vCat?.name],
+                ['Description', viewing.description],
+                ['Bank Account', vAcc?.name],
+                ['GST Amount', viewing.hasGST && viewing.gstAmount ? `₹${fmt(viewing.gstAmount)}` : null],
+                ['Notes', viewing.notes],
+              ]}
+              amount={fmt(viewing.amount)}
+              amountColor="text-red-600"
+              refId={`EXP-${(viewing.id||'').slice(-8).toUpperCase()}`}
+              ci={app.companyInfo}
+            />
+            {viewing.billMode === 'uploaded' && viewing.billImage && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-2">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-bold text-gray-700">Original Bill Photo</p>
+                  <button onClick={async () => { setVBusy(true); try { await shareOrDownloadPhoto(viewing.billImage, `BillPhoto-${viewing.date}.jpg`); } finally { setVBusy(false); } }}
+                    disabled={vBusy}
+                    className="flex items-center gap-1.5 text-purple-600 text-xs font-bold px-3 py-1.5 border border-purple-200 rounded-xl bg-purple-50 disabled:opacity-50">
+                    <Share2 size={12}/> Share Photo
+                  </button>
+                </div>
+                <img src={`data:image/jpeg;base64,${viewing.billImage}`} alt="Bill" className="w-full" />
+              </div>
+            )}
+            {viewing.billMode === 'urd' && (
+              <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 mt-2">
+                <p className="text-sm font-bold text-amber-800 mb-1">URD Self Invoice</p>
+                <p className="text-xs text-amber-600 mb-1">Supplier: {viewing.urdSupplierName}</p>
+                {viewing.urdSupplierAddress && <p className="text-xs text-amber-600 mb-3">{viewing.urdSupplierAddress}</p>}
+                <button onClick={async () => { setVBusy(true); try { const pdf = buildExpenseURDPDF(viewing, { categoryName: vCat?.name }, app.companyInfo||{}); await shareOrDownloadPDF(pdf, `ExpenseURD-${viewing.date}-${(viewing.id||'').slice(-5)}.pdf`); } finally { setVBusy(false); } }}
+                  disabled={vBusy}
+                  className="w-full py-2.5 bg-amber-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                  <Download size={14}/> Download URD Self Invoice
+                </button>
+              </div>
+            )}
+          </ReceiptViewer>
+        );
+      })()}
     </div>
   );
 }
