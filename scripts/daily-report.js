@@ -9,6 +9,7 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore }        = require('firebase-admin/firestore');
 const nodemailer               = require('nodemailer');
 const XLSX                     = require('xlsx');
+const PDFDocument              = require('pdfkit');
 
 // ── Firebase init ─────────────────────────────────────────────────────────
 const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -165,6 +166,249 @@ function buildExcel(today, { productionEntries, allMatPurchases, allOrderPayment
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stockSheet), 'Stock');
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+// ── PDF builder (pdfkit, A4 letterhead) ──────────────────────────────────
+function buildReportPDF(rangeLabel, {
+  todayProd, todayMat, todayIncoming, todayLabor, todayExp, allOrders,
+  products, factories, materialTypes, laborGroups, bankAccounts, expenseCategories,
+  stockData, totalIncome, totalMatCost, totalLaborCost, totalExpense, totalOut, netPL,
+  totalUnits, totalCement, byProduct, pName, fName, mName, mUnit, gName, aName, cName,
+  companyInfo,
+}) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const doc = new PDFDocument({
+      size: 'A4', margins: { top: 40, bottom: 50, left: 40, right: 40 }, bufferPages: true,
+    });
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    const ML = 40, PW = 515; // 595 - 40*2
+    const AMBER = '#92400e', DARK = '#1f2937', GRAY = '#6b7280';
+    const GREEN = '#15803d', RED = '#dc2626', LINE = '#e5e7eb', BG = '#f3f4f6';
+
+    const coName = (companyInfo?.name || 'UrbanMud Bricks and Blocks').toUpperCase();
+    const coAddr = (companyInfo?.address || 'Bhaktharahalli, Poojeana Agrahara, near Hoskote, Bangalore - 562114').replace(/\n/g, ', ');
+    const coPhone = companyInfo?.phone ? '  Ph: ' + companyInfo.phone : '';
+    const coGSTIN = companyInfo?.gstin ? '  GSTIN: ' + companyInfo.gstin : '';
+
+    const numN = n => Number(n || 0);
+    const rp   = n => 'Rs.' + numN(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    const fd   = d => { const [y, m, day] = String(d || '').slice(0, 10).split('-'); return day ? `${day}/${m}/${y}` : ''; };
+
+    function drawPageBanner() {
+      const y = doc.y;
+      doc.rect(ML, y, PW, 52).fill(AMBER);
+      doc.font('Helvetica-Bold').fontSize(13).fillColor('#ffffff');
+      doc.text(coName, ML + 8, y + 7, { width: PW - 165, lineBreak: false });
+      doc.font('Helvetica').fontSize(7).fillColor('#fcd34d');
+      doc.text(coAddr + coPhone + coGSTIN, ML + 8, y + 24, { width: PW - 165 });
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff');
+      doc.text('BUSINESS REPORT', ML + PW - 155, y + 7, { width: 150, align: 'right', lineBreak: false });
+      doc.font('Helvetica').fontSize(8).fillColor('#fcd34d');
+      doc.text(rangeLabel, ML + PW - 155, y + 23, { width: 150, align: 'right' });
+      const ts = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      doc.text('Generated: ' + ts, ML + PW - 155, y + 34, { width: 150, align: 'right' });
+      doc.y = y + 60;
+    }
+
+    function ensureSpace(h) {
+      if (doc.y + h > 760) { doc.addPage(); drawPageBanner(); }
+    }
+
+    function secTitle(title, col) {
+      ensureSpace(34);
+      const y = doc.y + 6;
+      doc.rect(ML, y, PW, 21).fill(col + '22');
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(col);
+      doc.text(title, ML + 8, y + 6, { width: PW - 16 });
+      doc.y = y + 27;
+    }
+
+    function table(headers, widths, rows, empty) {
+      const HH = 19, RH = 16;
+      const TW = widths.reduce((s, w) => s + w, 0);
+      ensureSpace(HH + (rows.length || 1) * RH + 4);
+      let y = doc.y;
+
+      const drawHead = (startY) => {
+        doc.rect(ML, startY, TW, HH).fill(BG);
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(DARK);
+        let x = ML;
+        headers.forEach((h, i) => {
+          doc.text(h, x + 3, startY + 5, { width: widths[i] - 6, lineBreak: false });
+          x += widths[i];
+        });
+        doc.moveTo(ML, startY + HH).lineTo(ML + TW, startY + HH).strokeColor('#d1d5db').lineWidth(0.5).stroke();
+        return startY + HH;
+      };
+
+      y = drawHead(y);
+
+      if (!rows.length) {
+        doc.font('Helvetica').fontSize(8).fillColor('#9ca3af');
+        doc.text(empty || 'No data for this period', ML + 4, y + 4);
+        y += RH;
+      } else {
+        rows.forEach((row, ri) => {
+          if (y + RH > 760) { doc.y = y; doc.addPage(); drawPageBanner(); y = drawHead(doc.y); }
+          if (ri % 2 === 1) doc.rect(ML, y, TW, RH).fill('#f9fafb');
+          doc.font('Helvetica').fontSize(7.5).fillColor(DARK);
+          let rx = ML;
+          row.forEach((cell, ci) => {
+            const last = ci === row.length - 1;
+            const txt = cell == null ? '' : String(cell);
+            doc.text(txt, rx + 3, y + 4, { width: widths[ci] - 6, lineBreak: false, align: last ? 'right' : 'left' });
+            rx += widths[ci];
+          });
+          doc.moveTo(ML, y + RH).lineTo(ML + TW, y + RH).strokeColor(LINE).lineWidth(0.3).stroke();
+          y += RH;
+        });
+      }
+      doc.y = y + 8;
+    }
+
+    // ── Page 1 ──────────────────────────────────────────────────────────────
+    drawPageBanner();
+
+    // KPI summary strip (6 tiles, 2 rows of 3)
+    const kpis = [
+      ['Units Produced',    totalUnits + ' pcs',                             DARK],
+      ['Cement Used',       totalCement + ' bags',                           '#b45309'],
+      ['Income Received',   rp(totalIncome),                                 GREEN],
+      ['Total Outflow',     rp(totalOut),                                    RED],
+      ['Net P&L',           (netPL >= 0 ? '+' : '') + rp(netPL),            netPL >= 0 ? GREEN : RED],
+      ['Material Cost',     rp(totalMatCost),                                '#1d4ed8'],
+    ];
+    ensureSpace(76);
+    const ky = doc.y + 4;
+    doc.rect(ML, ky, PW, 64).fillAndStroke('#fef3c7', '#fde68a').lineWidth(0.5);
+    const kw = PW / 3;
+    kpis.forEach((k, i) => {
+      const kx = ML + (i % 3) * kw + 8;
+      const kyy = ky + Math.floor(i / 3) * 32 + 6;
+      doc.font('Helvetica').fontSize(7).fillColor(GRAY).text(k[0], kx, kyy, { width: kw - 16, lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(11).fillColor(k[2]).text(k[1], kx, kyy + 10, { width: kw - 16, lineBreak: false });
+    });
+    doc.y = ky + 72;
+
+    // ── 1. Production ────────────────────────────────────────────────────────
+    secTitle('1.  PRODUCTION DETAILS', '#1d4ed8');
+    table(
+      ['Factory', 'Product', 'Qty (pcs)', 'Cement (bags)', 'Notes'],
+      [100, 150, 70, 100, 95],
+      todayProd.map(e => [fName(e.factoryId), pName(e.productId), numN(e.quantity), numN(e.cementBags), e.notes || '']),
+      'No production entries for this period'
+    );
+    if (Object.keys(byProduct).length > 1) {
+      ensureSpace(16);
+      doc.font('Helvetica').fontSize(7.5).fillColor(GRAY).text('Product-wise Summary:', ML, doc.y); doc.y += 4;
+      table(
+        ['Product', 'Total Units', 'Cement Used', 'Factories'],
+        [185, 90, 90, 150],
+        Object.values(byProduct).map(p => [p.name, p.qty + ' pcs', p.cement + ' bags', p.factories.join(', ')]),
+        ''
+      );
+    }
+
+    // ── 2. Incoming Payments ─────────────────────────────────────────────────
+    secTitle('2.  INCOMING PAYMENTS  (Sales)', GREEN);
+    table(
+      ['Date', 'Customer', 'Product', 'Order #', 'Bank Account', 'Received'],
+      [55, 115, 110, 65, 90, 80],
+      todayIncoming.map(p => {
+        const o = allOrders.find(x => x.id === p.orderId) || {};
+        return [fd(p.date), o.customerName || '—', pName(o.productId), o.orderNumber || '—', aName(p.bankAccountId), rp(p.amount)];
+      }),
+      'No incoming payments for this period'
+    );
+
+    // ── 3. Material Purchases ────────────────────────────────────────────────
+    secTitle('3.  MATERIAL PURCHASES', '#1d4ed8');
+    table(
+      ['Date', 'Material', 'Qty', 'Rate', 'Supplier', 'Bill No', 'Amount'],
+      [55, 90, 60, 65, 85, 65, 95],
+      todayMat.map(p => [
+        fd(p.date), mName(p.materialTypeId),
+        numN(p.quantity) + ' ' + mUnit(p.materialTypeId),
+        p.ratePerUnit ? rp(p.ratePerUnit) : '—',
+        p.supplier || '—', p.billNumber || '—', rp(p.totalAmount),
+      ]),
+      'No material purchases for this period'
+    );
+
+    // ── 4. Material Stock ────────────────────────────────────────────────────
+    secTitle('4.  MATERIAL STOCK  (cumulative, all-time)', '#b45309');
+    table(
+      ['Material', 'Unit', 'Total Purchased', 'Total Used', 'Current Stock'],
+      [160, 60, 100, 100, 95],
+      stockData.map(s => [s.name, s.unit, s.purchased, s.used > 0 ? s.used : '—', s.stock]),
+      'No materials configured'
+    );
+
+    // ── 5. Labour Payments ───────────────────────────────────────────────────
+    secTitle('5.  LABOUR PAYMENTS', '#065f46');
+    table(
+      ['Date', 'Labour Group', 'Type', 'Bank Account', 'Notes', 'Amount'],
+      [55, 105, 65, 95, 100, 95],
+      todayLabor.map(p => [fd(p.date), gName(p.laborGroupId), p.paymentType || 'regular', aName(p.bankAccountId), p.notes || '—', rp(p.amount)]),
+      'No labour payments for this period'
+    );
+
+    // ── 6. Other Expenses ────────────────────────────────────────────────────
+    secTitle('6.  OTHER EXPENSES', '#7c3aed');
+    table(
+      ['Date', 'Category', 'Description', 'Bank Account', 'Notes', 'Amount'],
+      [55, 90, 105, 95, 80, 90],
+      todayExp.map(e => [fd(e.date), cName(e.categoryId), e.description || '—', aName(e.bankAccountId), e.notes || '—', rp(e.amount)]),
+      'No expenses for this period'
+    );
+
+    // ── 7. P&L Summary ───────────────────────────────────────────────────────
+    secTitle('7.  FINANCIAL SUMMARY  —  P & L', AMBER);
+    ensureSpace(140);
+    const sy = doc.y, SW = 310;
+    const rows = [
+      ['Total Income (Order Payments Received)', rp(totalIncome), GREEN],
+      ['Less: Material Purchase Cost',           '(' + rp(totalMatCost) + ')', RED],
+      ['Less: Labour Payments',                  '(' + rp(totalLaborCost) + ')', RED],
+      ['Less: Other Expenses',                   '(' + rp(totalExpense) + ')', RED],
+    ];
+    let ry = sy;
+    rows.forEach(([l, v, c]) => {
+      doc.font('Helvetica').fontSize(9).fillColor(DARK).text(l, ML + 6, ry + 4, { width: SW - 115, lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(c).text(v, ML + SW - 108, ry + 4, { width: 105, align: 'right', lineBreak: false });
+      ry += 22;
+    });
+    doc.moveTo(ML, ry).lineTo(ML + SW, ry).strokeColor('#d1d5db').lineWidth(1).stroke(); ry += 4;
+    doc.rect(ML, ry, SW, 28).fill(netPL >= 0 ? '#f0fdf4' : '#fef2f2');
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK).text('Net P&L', ML + 6, ry + 8, { lineBreak: false });
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(netPL >= 0 ? GREEN : RED);
+    doc.text((netPL >= 0 ? '+' : '') + rp(netPL), ML + SW - 108, ry + 6, { width: 105, align: 'right', lineBreak: false });
+    doc.y = ry + 36;
+
+    // ── Confidentiality note ─────────────────────────────────────────────────
+    ensureSpace(30);
+    doc.moveDown(0.5);
+    doc.font('Helvetica').fontSize(7).fillColor('#9ca3af');
+    doc.text('This document is intended solely for internal use and audit purposes. All figures are in Indian Rupees (INR).', ML, doc.y, { width: PW, align: 'center' });
+
+    // ── Page footers (requires bufferPages:true) ──────────────────────────────
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      doc.font('Helvetica').fontSize(7).fillColor('#9ca3af');
+      doc.text(
+        `Page ${i + 1} of ${range.count}  \u00b7  Urbanmud Business Report  \u00b7  ${rangeLabel}  \u00b7  CONFIDENTIAL`,
+        ML, 822, { width: PW, align: 'center', lineBreak: false }
+      );
+    }
+
+    doc.flushPages();
+    doc.end();
+  });
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────
@@ -357,7 +601,8 @@ async function main() {
   </div>
 
   <p style="color:#9ca3af;font-size:11px;margin-top:20px;text-align:center">
-    Excel attachment contains full transaction details for Incoming, Outgoing &amp; Stock.<br>
+    📎 <strong>PDF</strong> — printable A4 letterhead report for auditing &amp; filing &nbsp;|&nbsp;
+    📎 <strong>Excel</strong> — full transaction details (Incoming, Outgoing, Stock)<br>
     Auto-generated by Urbanmud · ${rangeLabel}
   </p>
 </div>
@@ -370,6 +615,24 @@ async function main() {
     expenses: todayExp, orders: allOrders, products, factories,
     materialTypes, laborGroups, bankAccounts, expenseCategories,
   });
+
+  // ── Build PDF ─────────────────────────────────────────────────────────
+  let pdfBuffer = null;
+  try {
+    const companyInfo = master.companyInfo || {};
+    pdfBuffer = await buildReportPDF(rangeLabel, {
+      todayProd, todayMat, todayIncoming, todayLabor, todayExp,
+      allOrders, products, factories, materialTypes, laborGroups,
+      bankAccounts, expenseCategories, stockData,
+      totalIncome, totalMatCost, totalLaborCost: totalLabor,
+      totalExpense, totalOut, netPL,
+      totalUnits, totalCement, byProduct,
+      pName, fName, mName, mUnit, gName, aName, cName, companyInfo,
+    });
+    console.log('PDF generated:', Math.round(pdfBuffer.length / 1024), 'KB');
+  } catch (pdfErr) {
+    console.warn('PDF generation failed (email will still be sent without PDF):', pdfErr.message);
+  }
 
   // ── Send email ────────────────────────────────────────────────────────
   // Primary: reportEmails list managed from app Settings
@@ -387,14 +650,22 @@ async function main() {
     subject: `Urbanmud Report — ${rangeLabel}`,
     // date-range subject uses rangeLabel (single day or period)
     html,
-    attachments: [{
-      filename: `Urbanmud_Transactions_${fromDate}${isRange?'_to_'+toDate:''}.xlsx`,
-      content: excelBuffer,
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    }],
+    attachments: [
+      {
+        filename: `Urbanmud_Report_${fromDate}${isRange?'_to_'+toDate:''}.pdf`,
+        content: pdfBuffer || Buffer.alloc(0),
+        contentType: 'application/pdf',
+        ...(pdfBuffer ? {} : { content: undefined }),
+      },
+      {
+        filename: `Urbanmud_Transactions_${fromDate}${isRange?'_to_'+toDate:''}.xlsx`,
+        content: excelBuffer,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    ].filter(a => a.content),
   });
 
-  console.log('✅ Report sent with Excel attachment!');
+  console.log('✅ Report sent with Excel + PDF attachments!');
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
