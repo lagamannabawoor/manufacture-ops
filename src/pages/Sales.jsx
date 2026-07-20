@@ -5,7 +5,7 @@ import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal'
 import { Plus, Trash2, Eye, Pencil, Printer, FileText, Receipt, ArrowRight, X, Download, Share2, Loader } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import autoTable from 'jspdf-autotable';
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 function fmt(n) { return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0); }
@@ -536,23 +536,197 @@ function blobToBase64(blob) {
   });
 }
 
-async function buildPDF(elementId, filename) {
-  const el = document.getElementById(elementId);
-  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-  const imgData = canvas.toDataURL('image/png');
+function buildPDF(docData, type, ci) {
+  const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
+  const coTagline = ci?.tagline || '';
+  const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
+  const coPhone   = ci?.phone   || '';
+  const coEmail   = ci?.email   || '';
+  const coGSTIN   = ci?.gstin   || '';
+
+  const isQ   = type === 'quote';
+  const docNo = isQ ? docData.quoteNumber : docData.invoiceNumber;
+  const { subtotal, discAmt, cgst, sgst, igst, total } = calcDoc(
+    docData.items || [], docData.taxType, docData.taxRate, docData.discountValue, docData.discountType
+  );
+
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pw = pdf.internal.pageSize.getWidth();
-  const ph = pdf.internal.pageSize.getHeight();
-  const iw = (canvas.height * pw) / canvas.width;
-  let pos = 0, left = iw;
-  pdf.addImage(imgData, 'PNG', 0, 0, pw, iw);
-  left -= ph;
-  while (left > 0) {
-    pos -= ph;
-    pdf.addPage();
-    pdf.addImage(imgData, 'PNG', 0, pos, pw, iw);
-    left -= ph;
+  const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
+  const A  = [146, 64, 14];    // amber
+  const DK = [30, 30, 30];     // dark
+  const MD = [90, 90, 90];     // mid
+  const LT = [190, 190, 190];  // light
+  const rp = (n) => 'Rs.' + fmt(n); // jsPDF standard fonts can't render ₹
+
+  let y = ML;
+  const needPage = (h) => { if (y + h > H - 18) { pdf.addPage(); y = ML; } };
+
+  // ─── HEADER ────────────────────────────────────────────────────────────────
+  pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
+  pdf.text(coName.toUpperCase(), ML, y + 7);
+  pdf.setFontSize(13); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
+  pdf.text(isQ ? 'QUOTATION' : 'TAX INVOICE', W - MR, y + 7, { align: 'right' });
+  y += 10;
+
+  if (coTagline) {
+    pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+    pdf.text(coTagline, ML, y); y += 4;
   }
+  pdf.setFontSize(8.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+  coAddress.split('\n').forEach(l => { pdf.text(l, ML, y); y += 4; });
+  if (coPhone) { pdf.text('Ph: ' + coPhone, ML, y); y += 4; }
+  if (coEmail) { pdf.text(coEmail, ML, y); y += 4; }
+  if (coGSTIN) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('GSTIN: ' + coGSTIN, ML, y);
+    pdf.setFont('helvetica', 'normal'); y += 4;
+  }
+
+  // Doc meta (right column, positioned at top)
+  const metaX = W - MR, metaYStart = 22;
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
+  pdf.text(docNo, metaX, metaYStart, { align: 'right' });
+  pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+  pdf.text('Date: ' + (docData.date || ''), metaX, metaYStart + 5, { align: 'right' });
+  let metaOffset = metaYStart + 10;
+  if (isQ && docData.validUntil) {
+    pdf.text('Valid Until: ' + docData.validUntil, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+  }
+  if (!isQ && docData.dueDate) {
+    pdf.text('Due Date: ' + docData.dueDate, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+  }
+  if (!isQ && docData.quoteRef) {
+    pdf.text('Quote Ref: ' + docData.quoteRef, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+  }
+  const payLabel = PAYMENT_TERMS_OPTIONS.find(p => p.id === docData.paymentTerms)?.label || docData.paymentTerms || '';
+  if (payLabel) {
+    pdf.text('Terms: ' + payLabel, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+  }
+
+  y = Math.max(y, metaOffset) + 4;
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.6);
+  pdf.line(ML, y, W - MR, y); y += 7;
+
+  // ─── BILL TO ───────────────────────────────────────────────────────────────
+  needPage(30);
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...LT);
+  pdf.text('BILL TO', ML, y); y += 4.5;
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
+  pdf.text(docData.customerName || '—', ML, y); y += 5;
+  pdf.setFontSize(8.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+  if (docData.customerPhone) { pdf.text(docData.customerPhone, ML, y); y += 4; }
+  if (docData.customerAddress) {
+    docData.customerAddress.split('\n').forEach(l => { pdf.text(l, ML, y); y += 4; });
+  }
+  if (docData.customerGST) { pdf.text('GSTIN: ' + docData.customerGST, ML, y); y += 4; }
+  if (docData.placeOfSupply) { pdf.text('Place of Supply: ' + docData.placeOfSupply, ML, y); y += 4; }
+  y += 4;
+
+  // ─── ITEMS TABLE ───────────────────────────────────────────────────────────
+  const rows = (docData.items || []).map((it, i) => [
+    i + 1,
+    it.description || '',
+    it.hsnCode || '6810',
+    it.unit || 'pcs',
+    Number(it.quantity) || 0,
+    rp(Number(it.unitPrice) || 0),
+    rp((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)),
+  ]);
+
+  autoTable(pdf, {
+    startY: y,
+    head: [['#', 'Description', 'HSN', 'Unit', 'Qty', 'Rate', 'Amount']],
+    body: rows,
+    margin: { left: ML, right: MR },
+    headStyles: { fillColor: A, textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', cellPadding: 3.5 },
+    bodyStyles: { fontSize: 8.5, textColor: DK, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [255, 248, 235] },
+    columnStyles: {
+      0: { cellWidth: 8,  halign: 'center' },
+      2: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 14, halign: 'center' },
+      4: { cellWidth: 12, halign: 'right'  },
+      5: { cellWidth: 25, halign: 'right'  },
+      6: { cellWidth: 27, halign: 'right'  },
+    },
+    styles: { overflow: 'linebreak' },
+    showFoot: 'never',
+  });
+  y = pdf.lastAutoTable.finalY + 7;
+
+  // ─── TOTALS ────────────────────────────────────────────────────────────────
+  needPage(55);
+  const TW = 78, TX = W - MR - TW;
+  const trow = (label, val, bold = false, color = MD) => {
+    pdf.setFontSize(9); pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setTextColor(...color);
+    pdf.text(label, TX, y); pdf.text(val, W - MR, y, { align: 'right' }); y += 5.5;
+  };
+  trow('Subtotal', rp(subtotal));
+  if (discAmt > 0) trow('Discount', '- ' + rp(discAmt), false, [22, 163, 74]);
+  if (cgst > 0) trow('CGST (' + (Number(docData.taxRate)/2) + '%)', rp(cgst));
+  if (sgst > 0) trow('SGST (' + (Number(docData.taxRate)/2) + '%)', rp(sgst));
+  if (igst > 0) trow('IGST (' + docData.taxRate + '%)', rp(igst));
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.4); pdf.line(TX, y, W - MR, y); y += 4;
+  trow('TOTAL', rp(total), true, A);
+  if (!isQ && Number(docData.paidAmount) > 0) {
+    trow('Paid', '- ' + rp(Number(docData.paidAmount)), false, [22, 163, 74]);
+    trow('Balance Due', rp(Math.max(0, total - Number(docData.paidAmount))), true, [220, 38, 38]);
+  }
+  y += 5;
+
+  // ─── AMOUNT IN WORDS ───────────────────────────────────────────────────────
+  needPage(12);
+  pdf.setFontSize(8); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(...MD);
+  const wl = pdf.splitTextToSize('Amount in words: ' + toWords(total), CW);
+  pdf.text(wl, ML, y); y += wl.length * 4.5 + 5;
+
+  // ─── NOTES ─────────────────────────────────────────────────────────────────
+  if (docData.notes) {
+    needPage(20);
+    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...LT);
+    pdf.text('NOTES', ML, y); y += 4;
+    pdf.setFontSize(8.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+    const nl = pdf.splitTextToSize(docData.notes, CW);
+    pdf.text(nl, ML, y); y += nl.length * 4.2 + 5;
+  }
+
+  // ─── TERMS ─────────────────────────────────────────────────────────────────
+  if (isQ && docData.terms) {
+    needPage(24);
+    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...LT);
+    pdf.text('TERMS & CONDITIONS', ML, y); y += 4;
+    pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+    const tl = pdf.splitTextToSize(docData.terms, CW);
+    pdf.text(tl, ML, y); y += tl.length * 4 + 5;
+  }
+
+  // ─── SIGNING AUTHORITIES ───────────────────────────────────────────────────
+  needPage(38);
+  y += 5;
+  pdf.setDrawColor(...LT); pdf.setLineWidth(0.3);
+  pdf.line(ML, y, W - MR, y); y += 15;
+  const sw = CW / 3;
+  [['Customer Signature', 'Name & Seal'], ['Prepared By', ''], ['Authorised Signatory', 'For ' + coName]]
+    .forEach(([label, sub], i) => {
+      const cx = ML + i * sw + sw / 2;
+      pdf.setDrawColor(...MD); pdf.setLineWidth(0.4);
+      pdf.line(cx - sw/2 + 6, y, cx + sw/2 - 6, y);
+      pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
+      pdf.text(label, cx, y + 5, { align: 'center' });
+      if (sub) {
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+        pdf.text(sub, cx, y + 9, { align: 'center' });
+      }
+    });
+
+  // ─── PAGE FOOTER ───────────────────────────────────────────────────────────
+  const tp = pdf.internal.getNumberOfPages();
+  for (let p = 1; p <= tp; p++) {
+    pdf.setPage(p);
+    pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...LT);
+    pdf.text('Generated by Urbanmud Manufacturing Ops  |  Page ' + p + ' of ' + tp, W/2, H - 8, { align: 'center' });
+  }
+
   return pdf;
 }
 
@@ -577,7 +751,7 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
   async function handleDownload() {
     setPdfBusy('download');
     try {
-      const pdf = await buildPDF('sales-print-view', docNo);
+      const pdf = buildPDF(doc, type, ci);
       pdf.save(`${docNo}.pdf`);
     } catch (e) { alert('Could not generate PDF: ' + e.message); }
     finally { setPdfBusy(null); }
@@ -586,7 +760,7 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
   async function handleShare() {
     setPdfBusy('share');
     try {
-      const pdf = await buildPDF('sales-print-view', docNo);
+      const pdf = buildPDF(doc, type, ci);
       const blob = pdf.output('blob');
       const filename = `${docNo}.pdf`;
 
