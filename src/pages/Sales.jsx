@@ -561,13 +561,14 @@ function buildPDF(docData, type, ci) {
   let y = ML;
   const needPage = (h) => { if (y + h > H - 18) { pdf.addPage(); y = ML; } };
 
-  // ─── HEADER ────────────────────────────────────────────────────────────────
+  // ─── HEADER (left column: company  |  right column: doc type + meta) ────────
+  const headerStartY = y;
+  const metaX = W - MR;
+
+  // ── Left column ──
   pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
   pdf.text(coName.toUpperCase(), ML, y + 7);
-  pdf.setFontSize(13); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
-  pdf.text(isQ ? 'QUOTATION' : 'TAX INVOICE', W - MR, y + 7, { align: 'right' });
-  y += 10;
-
+  y += 11;
   if (coTagline) {
     pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
     pdf.text(coTagline, ML, y); y += 4;
@@ -582,28 +583,31 @@ function buildPDF(docData, type, ci) {
     pdf.setFont('helvetica', 'normal'); y += 4;
   }
 
-  // Doc meta (right column, positioned at top)
-  const metaX = W - MR, metaYStart = 22;
+  // ── Right column (independent Y tracker `ry`) ──
+  let ry = headerStartY + 7;
+  pdf.setFontSize(13); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
+  pdf.text(isQ ? 'QUOTATION' : 'TAX INVOICE', metaX, ry, { align: 'right' }); ry += 8;
+
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
-  pdf.text(docNo, metaX, metaYStart, { align: 'right' });
+  pdf.text(docNo, metaX, ry, { align: 'right' }); ry += 6;
+
   pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
-  pdf.text('Date: ' + (docData.date || ''), metaX, metaYStart + 5, { align: 'right' });
-  let metaOffset = metaYStart + 10;
+  pdf.text('Date: ' + (docData.date || ''), metaX, ry, { align: 'right' }); ry += 5;
   if (isQ && docData.validUntil) {
-    pdf.text('Valid Until: ' + docData.validUntil, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+    pdf.text('Valid Until: ' + docData.validUntil, metaX, ry, { align: 'right' }); ry += 5;
   }
   if (!isQ && docData.dueDate) {
-    pdf.text('Due Date: ' + docData.dueDate, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+    pdf.text('Due Date: ' + docData.dueDate, metaX, ry, { align: 'right' }); ry += 5;
   }
   if (!isQ && docData.quoteRef) {
-    pdf.text('Quote Ref: ' + docData.quoteRef, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+    pdf.text('Quote Ref: ' + docData.quoteRef, metaX, ry, { align: 'right' }); ry += 5;
   }
   const payLabel = PAYMENT_TERMS_OPTIONS.find(p => p.id === docData.paymentTerms)?.label || docData.paymentTerms || '';
   if (payLabel) {
-    pdf.text('Terms: ' + payLabel, metaX, metaOffset, { align: 'right' }); metaOffset += 5;
+    pdf.text('Terms: ' + payLabel, metaX, ry, { align: 'right' }); ry += 5;
   }
 
-  y = Math.max(y, metaOffset) + 4;
+  y = Math.max(y, ry) + 4;
   pdf.setDrawColor(...A); pdf.setLineWidth(0.6);
   pdf.line(ML, y, W - MR, y); y += 7;
 
