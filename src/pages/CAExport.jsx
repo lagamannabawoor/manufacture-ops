@@ -513,7 +513,7 @@ export default function CAExport({ onClose }) {
                 ['Net P&L',      `${netPL >= 0 ? '+' : ''}₹${fmt(netPL)}`, netPL >= 0 ? 'text-green-600' : 'text-red-600'],
                 ['Transactions', totalTxns,                'text-gray-800'],
                 ['Bill Photos',  billCount,                'text-gray-800'],
-                ['Prod. Entries',productionEntries.length, 'text-gray-800'],
+                ['Prod. Entries',prodEntries.length,        'text-gray-800'],
               ].map(([l, v, c]) => (
                 <div key={l} className="bg-gray-50 rounded-xl p-2.5">
                   <p className="text-[9px] text-gray-400 leading-tight">{l}</p>
@@ -529,7 +529,7 @@ export default function CAExport({ onClose }) {
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">What's in the ZIP</p>
           <div className="space-y-2">
             {[
-              ['📄', '01_PL_Statement.pdf',      'Printable A4 letterhead — Income, Expenses, P&L, Bank summary, CA notes', 'bg-amber-50  text-amber-700'],
+              ['📄', '01_PL_Statement.pdf',      'Printable A4 letterhead — Income, Expenses, P&L, Bank summary, CA notes', 'bg-amber-50 text-amber-700'],
               ['📊', '02–08 CSV data files',      'P&L · Sales · Materials · Labour · Expenses · Production · Bank (open in Excel)', 'bg-blue-50 text-blue-700'],
               ['🧾', `Bills_Expenses/ (${expenses.filter(e=>e.billImage).length} files)`, 'Original expense bill photos as JPEG', 'bg-green-50 text-green-700'],
               ['📦', `Bills_Materials/ (${matPurchases.filter(p=>p.billImage).length} files)`, 'Material purchase bill photos as JPEG', 'bg-green-50 text-green-700'],
