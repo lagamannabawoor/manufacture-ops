@@ -186,8 +186,8 @@ function buildReportPDF(rangeLabel, {
     doc.on('error', reject);
 
     const ML = 40, PW = 515; // 595 - 40*2
-    const NAVY = '#0f1e50', DARK = '#1f2937', GRAY = '#6b7280';
-    const GREEN = '#15803d', RED = '#dc2626', LINE = '#e2e8f0', BG = '#e8ecf4';
+    const AMBER = '#92400e', DARK = '#1f2937', GRAY = '#6b7280';
+    const GREEN = '#15803d', RED = '#dc2626', LINE = '#fde68a', BG = '#fef3c7';
 
     const coName = (companyInfo?.name || 'UrbanMud Bricks and Blocks').toUpperCase();
     const coAddr = (companyInfo?.address || 'Bhaktharahalli, Poojeana Agrahara, near Hoskote, Bangalore - 562114').replace(/\n/g, ', ');
@@ -200,14 +200,14 @@ function buildReportPDF(rangeLabel, {
 
     function drawPageBanner() {
       const y = doc.y;
-      doc.rect(ML, y, PW, 52).fill(NAVY);
+      doc.rect(ML, y, PW, 52).fill(AMBER);
       doc.font('Helvetica-Bold').fontSize(13).fillColor('#ffffff');
       doc.text(coName, ML + 8, y + 7, { width: PW - 165, lineBreak: false });
-      doc.font('Helvetica').fontSize(7).fillColor('#94a3b8');
+      doc.font('Helvetica').fontSize(7).fillColor('#fcd34d');
       doc.text(coAddr + coPhone + coGSTIN, ML + 8, y + 24, { width: PW - 165 });
       doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff');
       doc.text('BUSINESS REPORT', ML + PW - 155, y + 7, { width: 150, align: 'right', lineBreak: false });
-      doc.font('Helvetica').fontSize(8).fillColor('#94a3b8');
+      doc.font('Helvetica').fontSize(8).fillColor('#fcd34d');
       doc.text(rangeLabel, ML + PW - 155, y + 23, { width: 150, align: 'right' });
       const ts = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
       doc.text('Generated: ' + ts, ML + PW - 155, y + 34, { width: 150, align: 'right' });
@@ -221,9 +221,9 @@ function buildReportPDF(rangeLabel, {
     function secTitle(title) {
       ensureSpace(34);
       const y = doc.y + 6;
-      doc.rect(ML, y, PW, 22).fill('#eef1f8');
-      doc.rect(ML, y, 4, 22).fill(NAVY);
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(NAVY);
+      doc.rect(ML, y, PW, 22).fill('#fffbeb');
+      doc.rect(ML, y, 4, 22).fill(AMBER);
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(AMBER);
       doc.text(title, ML + 10, y + 6, { width: PW - 18, lineBreak: false });
       doc.y = y + 28;
     }
@@ -299,7 +299,7 @@ function buildReportPDF(rangeLabel, {
     ];
     ensureSpace(76);
     const ky = doc.y + 4;
-    doc.rect(ML, ky, PW, 64).fillAndStroke('#f8fafc', '#e2e8f0').lineWidth(0.5);
+    doc.rect(ML, ky, PW, 64).fillAndStroke('#fffbeb', '#fde68a').lineWidth(0.5);
     const kw = PW / 3;
     kpis.forEach((k, i) => {
       const kx = ML + (i % 3) * kw + 8;
@@ -416,8 +416,8 @@ function buildReportPDF(rangeLabel, {
       doc.switchToPage(range.start + i);
       const savedBottom = doc.page.margins.bottom;
       doc.page.margins.bottom = 0;
-      doc.font('Helvetica').fontSize(7).fillColor('#94a3b8');
-      doc.moveTo(ML, doc.page.height - 22).lineTo(ML + PW, doc.page.height - 22).strokeColor('#e2e8f0').lineWidth(0.4).stroke();
+      doc.font('Helvetica').fontSize(7).fillColor(GRAY);
+      doc.moveTo(ML, doc.page.height - 22).lineTo(ML + PW, doc.page.height - 22).strokeColor('#fde68a').lineWidth(0.4).stroke();
       doc.text(
         `Page ${i + 1} of ${range.count}  \u00b7  Urbanmud Business Report  \u00b7  ${rangeLabel}  \u00b7  CONFIDENTIAL`,
         ML, doc.page.height - 18, { width: PW, align: 'center', lineBreak: false }
