@@ -530,6 +530,7 @@ function OrdersTab() {
   const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterCustomer, setFilterCustomer] = useState('');
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [dispatchFor, setDispatchFor] = useState(null);
   const [dForm, setDForm] = useState({ date: todayISO(), quantity: '', notes: '' });
@@ -585,6 +586,7 @@ function OrdersTab() {
       return (!filterFrom || d >= filterFrom) && (!filterTo || d <= filterTo);
     })
     .filter(o => !filterStatus || computeOrder(o).effectiveStatus === filterStatus)
+    .filter(o => !filterCustomer || o.customerName.toLowerCase().includes(filterCustomer.toLowerCase()))
     .sort((a, b) => (b.id > a.id ? 1 : -1));
   const statusColors = { pending: 'bg-amber-50 text-amber-700', in_progress: 'bg-blue-50 text-blue-700', completed: 'bg-green-50 text-green-700' };
   const matColors = { yet_to_dispatch: 'bg-gray-100 text-gray-500', partial: 'bg-blue-50 text-blue-700', full: 'bg-green-50 text-green-700' };
@@ -607,6 +609,7 @@ function OrdersTab() {
             <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
           </select>
+          <input type="search" className={`${inputCls} col-span-2`} placeholder="Search by customer name…" value={filterCustomer} onChange={e => setFilterCustomer(e.target.value)} />
         </div>
       </div>
       <div className="flex justify-between items-center mb-4">
