@@ -80,6 +80,7 @@ const SEED = {
   laborPayments: [],
   orders: [],
   orderPayments: [],
+  orderDispatches: [],
   expenses: [],
   pendingProduction: [],
   auditLog: [],

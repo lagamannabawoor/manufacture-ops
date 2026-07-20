@@ -9,7 +9,7 @@ export const DOC_MAP = {
   master:     ['factories','productCategories','products','materialTypes','laborGroups','bankAccounts','expenseCategories','users','reportEmails','companyInfo'],
   production: ['productionEntries','pendingProduction'],
   materials:  ['materialPurchases'],
-  finance:    ['laborPayments','orders','orderPayments','expenses'],
+  finance:    ['laborPayments','orders','orderPayments','orderDispatches','expenses'],
   sales:      ['quotes','invoices'],
   audit:      ['auditLog'],
 };

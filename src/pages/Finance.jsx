@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Users, ShoppingBag, Receipt, ArrowDownCircle, ArrowUpCircle, Download, Share2, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Filter } from 'lucide-react';
+import { Plus, Trash2, Users, ShoppingBag, Receipt, ArrowDownCircle, ArrowUpCircle, Download, Share2, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Filter, Truck, ShieldCheck } from 'lucide-react';
 import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -530,9 +530,15 @@ function OrdersTab() {
   const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
   const [filterStatus, setFilterStatus] = useState('');
+  const [showDispatchModal, setShowDispatchModal] = useState(false);
+  const [dispatchFor, setDispatchFor] = useState(null);
+  const [dForm, setDForm] = useState({ date: todayISO(), quantity: '', notes: '' });
+
+  const isSuperAdmin = app.currentUser?.id === 'u_superadmin';
 
   function setOF(k, v) { setOrderForm(f => ({ ...f, [k]: v })); }
   function setPF(k, v) { setPayForm(f => ({ ...f, [k]: v })); }
+  function setDF(k, v) { setDForm(f => ({ ...f, [k]: v })); }
 
   function saveOrder() {
     if (!orderForm.customerName || !orderForm.productId || !orderForm.quantity) return alert('Customer, product, and quantity required.');
@@ -549,6 +555,28 @@ function OrdersTab() {
     setShowPayModal(false);
   }
 
+  function saveDispatch() {
+    if (!dForm.quantity || Number(dForm.quantity) <= 0) return alert('Quantity required.');
+    app.addItem('orderDispatches', { ...dForm, orderId: dispatchFor.id });
+    setDForm({ date: todayISO(), quantity: '', notes: '' });
+    setShowDispatchModal(false);
+  }
+
+  function computeOrder(order) {
+    const dispatches = (app.orderDispatches || []).filter(d => d.orderId === order.id);
+    const payments   = (app.orderPayments   || []).filter(p => p.orderId === order.id);
+    const totalOrdered   = Number(order.quantity || 0);
+    const totalDispatched = dispatches.reduce((s, d) => s + Number(d.quantity || 0), 0);
+    const received = payments.filter(p => p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
+    const balance  = Number(order.totalAmount || 0) - received;
+    const materialStatus = totalDispatched === 0 ? 'yet_to_dispatch'
+      : totalDispatched < totalOrdered ? 'partial' : 'full';
+    const autoStatus = materialStatus === 'full' && balance <= 0 ? 'completed'
+      : materialStatus !== 'yet_to_dispatch' ? 'in_progress' : 'pending';
+    const effectiveStatus = order.manualStatus || autoStatus;
+    return { dispatches, payments, totalDispatched, received, balance, materialStatus, autoStatus, effectiveStatus };
+  }
+
   const [viewing, setViewing] = useState(null);
   const [vBusy, setVBusy] = useState(false);
   const sorted = [...app.orders]
@@ -556,9 +584,11 @@ function OrdersTab() {
       const d = o.deliveryDate || new Date(parseInt(o.id)).toISOString().slice(0,10);
       return (!filterFrom || d >= filterFrom) && (!filterTo || d <= filterTo);
     })
-    .filter(o => !filterStatus || o.status === filterStatus)
+    .filter(o => !filterStatus || computeOrder(o).effectiveStatus === filterStatus)
     .sort((a, b) => (b.id > a.id ? 1 : -1));
   const statusColors = { pending: 'bg-amber-50 text-amber-700', in_progress: 'bg-blue-50 text-blue-700', completed: 'bg-green-50 text-green-700' };
+  const matColors = { yet_to_dispatch: 'bg-gray-100 text-gray-500', partial: 'bg-blue-50 text-blue-700', full: 'bg-green-50 text-green-700' };
+  const matLabels = { yet_to_dispatch: 'Yet to Dispatch', partial: 'Partial', full: 'Fully Dispatched' };
 
   return (
     <div className="px-4 py-4">
@@ -597,18 +627,20 @@ function OrdersTab() {
         <div className="space-y-3">
           {sorted.map(order => {
             const product = app.products.find(p => p.id === order.productId);
-            const payments = app.orderPayments.filter(p => p.orderId === order.id);
-            const received = payments.filter(p => p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
-            const paid = payments.filter(p => p.direction === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
-            const balance = Number(order.totalAmount || 0) - received;
+            const { dispatches, payments, totalDispatched, received, balance, materialStatus, effectiveStatus } = computeOrder(order);
             return (
               <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+
+                {/* Header row */}
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center flex-wrap gap-1.5 mb-1">
                       {order.orderNumber && <span className="text-xs text-gray-400">#{order.orderNumber}</span>}
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {order.status.replace('_', ' ')}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[effectiveStatus] || 'bg-gray-100 text-gray-600'}`}>
+                        {effectiveStatus.replace(/_/g, ' ')}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${matColors[materialStatus]}`}>
+                        <Truck size={9} className="inline mr-0.5" />{matLabels[materialStatus]}
                       </span>
                     </div>
                     <p className="font-semibold text-gray-800">{order.customerName}</p>
@@ -620,32 +652,78 @@ function OrdersTab() {
                     {balance > 0 && <p className="text-xs text-red-500">Due: ₹{fmt(balance)}</p>}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 border-t border-gray-50 pt-2">
-                  <span>{product?.name || 'Unknown'} · {fmt(order.quantity)} units</span>
-                  {order.deliveryDate && <span>· Delivery: {order.deliveryDate}</span>}
+
+                {/* Product + delivery info */}
+                <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-50 pt-2 mb-2">
+                  <span>{product?.name || 'Unknown'} · Ordered: {fmt(order.quantity)} units</span>
+                  {order.deliveryDate && <span>Delivery: {fmtDate(order.deliveryDate)}</span>}
                 </div>
-                <div className="flex gap-2 mt-3">
-                  <select
-                    className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
-                    value={order.status}
-                    onChange={e => app.updateItem('orders', order.id, { status: e.target.value })}
+
+                {/* Dispatch summary bar */}
+                <div className="bg-gray-50 rounded-lg px-3 py-2 mb-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-gray-600">Material Dispatched</span>
+                    <span className="text-xs font-bold text-gray-800">{fmt(totalDispatched)} / {fmt(order.quantity)} units</span>
+                  </div>
+                  {Number(order.quantity) > 0 && (
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div className="bg-amber-600 h-1.5 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (totalDispatched / Number(order.quantity)) * 100)}%` }} />
+                    </div>
+                  )}
+                  {dispatches.length > 0 && (
+                    <div className="mt-2 space-y-0.5">
+                      {dispatches.slice().reverse().slice(0, 3).map(d => (
+                        <div key={d.id} className="flex items-center justify-between text-[11px] text-gray-500">
+                          <span>{fmtDate(d.date)}{d.notes ? ` · ${d.notes}` : ''}</span>
+                          <span className="font-semibold text-gray-700">+{fmt(d.quantity)} units</span>
+                        </div>
+                      ))}
+                      {dispatches.length > 3 && <p className="text-[10px] text-gray-400">{dispatches.length - 3} more earlier…</p>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => { setDispatchFor(order); setDForm({ date: todayISO(), quantity: '', notes: '' }); setShowDispatchModal(true); }}
+                    className="flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-200"
                   >
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
+                    <Truck size={12} /> Add Dispatch
+                  </button>
                   <button
                     onClick={() => { setPayForm(f => ({ ...f, orderId: order.id })); setShowPayModal(true); }}
                     className="flex items-center gap-1 bg-green-50 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-green-200"
                   >
                     <ArrowDownCircle size={12} /> Add Payment
                   </button>
-                  <button onClick={() => { if (confirm('Delete order?')) app.deleteItem('orders', order.id); }} className="text-gray-300 hover:text-red-400 p-1">
+                  <button onClick={() => { if (confirm('Delete order?')) app.deleteItem('orders', order.id); }} className="ml-auto text-gray-300 hover:text-red-400 p-1">
                     <Trash2 size={15} />
                   </button>
                 </div>
+
+                {/* Super Admin manual override */}
+                {isSuperAdmin && (
+                  <div className="flex items-center gap-2 bg-purple-50 rounded-lg px-3 py-1.5 mb-2">
+                    <ShieldCheck size={12} className="text-purple-600 flex-shrink-0" />
+                    <span className="text-xs text-purple-700 font-semibold">Override Status:</span>
+                    <select
+                      className="flex-1 text-xs border border-purple-200 rounded-lg px-2 py-1 bg-white"
+                      value={order.manualStatus || ''}
+                      onChange={e => app.updateItem('orders', order.id, { manualStatus: e.target.value || '' })}
+                    >
+                      <option value="">Auto (computed)</option>
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Payment history */}
                 {payments.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-gray-50 space-y-1">
+                  <div className="pt-2 border-t border-gray-50 space-y-1">
                     {payments.slice(-3).map(p => {
                       const pAcc = app.bankAccounts.find(b => b.id === p.bankAccountId);
                       const prod = app.products.find(pr => pr.id === order.productId);
@@ -761,6 +839,19 @@ function OrdersTab() {
           </Field>
           <Field label="Notes"><textarea className={inputCls} rows={2} value={payForm.notes} onChange={e => setPF('notes', e.target.value)} /></Field>
           <SaveBtn onClick={savePayment} label="Record Payment" />
+        </Modal>
+      )}
+
+      {showDispatchModal && dispatchFor && (
+        <Modal title={`Add Dispatch — ${dispatchFor.customerName}`} onClose={() => setShowDispatchModal(false)}>
+          <div className="bg-amber-50 rounded-lg px-3 py-2 mb-3 text-xs text-amber-800">
+            <p className="font-semibold">{app.products.find(p => p.id === dispatchFor.productId)?.name}</p>
+            <p>Ordered: {fmt(dispatchFor.quantity)} units · Already dispatched: {fmt((app.orderDispatches||[]).filter(d=>d.orderId===dispatchFor.id).reduce((s,d)=>s+Number(d.quantity||0),0))} units</p>
+          </div>
+          <Field label="Date" required><input type="date" className={inputCls} value={dForm.date} onChange={e => setDF('date', e.target.value)} /></Field>
+          <Field label="Quantity Dispatched" required><input type="number" className={inputCls} placeholder="0" min="1" value={dForm.quantity} onChange={e => setDF('quantity', e.target.value)} /></Field>
+          <Field label="Notes"><textarea className={inputCls} rows={2} placeholder="e.g. 1st batch, truck no..." value={dForm.notes} onChange={e => setDF('notes', e.target.value)} /></Field>
+          <SaveBtn onClick={saveDispatch} label="Save Dispatch" />
         </Modal>
       )}
     </div>
