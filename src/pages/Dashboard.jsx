@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Package, Layers, DollarSign,
   Hammer, ChevronRight, CalendarDays, Building2, AlertTriangle,
   ShoppingBag, Users, Receipt, BarChart2, ArrowUpRight, ArrowDownRight,
-  Boxes, FlaskConical, Target, Percent,
+  Boxes, FlaskConical, Target, Percent, FileText,
 } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
 import UrbanmudLogo from '../components/UrbanmudLogo';
@@ -283,6 +283,8 @@ export default function Dashboard({ navigate }) {
                 <ActionBtn label="Add Material"   icon={Package}     color="bg-blue-600"   onClick={() => navigate('materials')} />
                 <ActionBtn label="Record Payment" icon={TrendingUp}  color="bg-green-600"  onClick={() => navigate('finance')} />
                 <ActionBtn label="Add Expense"    icon={Receipt}     color="bg-red-500"    onClick={() => navigate('finance')} />
+                <ActionBtn label="New Quote"      icon={FileText}    color="bg-purple-600" onClick={() => navigate('sales', 'new_quote')} />
+                <ActionBtn label="New Invoice"    icon={DollarSign}  color="bg-teal-600"   onClick={() => navigate('sales', 'new_invoice')} />
               </div>
             </div>
           </>

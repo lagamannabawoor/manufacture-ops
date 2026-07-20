@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
@@ -125,7 +125,7 @@ function freshInvoice(fromQuote) {
 }
 
 // ── Main Page ────────────────────────────────────────────────────────────────
-export default function Sales() {
+export default function Sales({ initialAction, onActionConsumed }) {
   const app = useApp();
   const canWrite = (app.currentUser?.role === 'admin' || app.currentUser?.role === 'accountant');
   const [activeTab, setActiveTab] = useState('quotes');
@@ -141,6 +141,11 @@ export default function Sales() {
     setEditing(null); setPrefill(pre || null);
     setModalType(type); setActiveTab(type === 'quote' ? 'quotes' : 'invoices');
   }
+
+  useEffect(() => {
+    if (initialAction === 'new_quote')   { openCreate('quote');   onActionConsumed?.(); }
+    if (initialAction === 'new_invoice') { openCreate('invoice'); onActionConsumed?.(); }
+  }, [initialAction]);
   function openEdit(type, doc) { setEditing(doc); setPrefill(null); setModalType(type); }
 
   function handleSave(type, data) {

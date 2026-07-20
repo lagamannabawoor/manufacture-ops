@@ -50,6 +50,7 @@ function SyncBadge() {
 function AppShell() {
   const { currentUser } = useApp();
   const [page, setPage] = useState('');
+  const [pendingAction, setPendingAction] = useState(null);
 
   if (!currentUser) return <Login />;
 
@@ -59,14 +60,14 @@ function AppShell() {
   const defaultPage = allowedTabs[0] || 'production';
   const activePage = page && allowedTabs.includes(page) ? page : defaultPage;
 
-  const navigate = (p) => { if (allowedTabs.includes(p)) setPage(p); };
+  const navigate = (p, action) => { if (allowedTabs.includes(p)) { setPendingAction(action || null); setPage(p); } };
 
   const pages = {
     dashboard:  <Dashboard navigate={navigate} />,
     production: <Production navigate={navigate} />,
     materials:  <Materials navigate={navigate} />,
     finance:    <Finance navigate={navigate} />,
-    sales:      <Sales navigate={navigate} />,
+    sales:      <Sales initialAction={pendingAction} onActionConsumed={() => setPendingAction(null)} />,
     reports:    <Reports navigate={navigate} />,
     settings:   <Settings navigate={navigate} />,
   };
