@@ -84,6 +84,15 @@ const SEED = {
   pendingProduction: [],
   auditLog: [],
   reportEmails: ['lagamanna@gmail.com'],
+  companyInfo: {
+    name: 'UrbanMud Bricks and Blocks',
+    tagline: 'CSEB Mud Blocks · Concrete Solid Blocks · Pavers · Parking Tiles',
+    address: 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114',
+    phone: '',
+    email: '',
+    gstin: '',
+    website: '',
+  },
 };
 
 function loadData() {
@@ -296,6 +305,11 @@ export function AppProvider({ children }) {
     markDirty('reportEmails');
   }
 
+  function setCompanyInfo(info) {
+    setData(prev => ({ ...prev, companyInfo: { ...prev.companyInfo, ...info } }));
+    markDirty('companyInfo');
+  }
+
   function resetData() {
     setData(SEED);
   }
@@ -324,6 +338,7 @@ export function AppProvider({ children }) {
     setList,
     resetData,
     setReportEmails,
+    setCompanyInfo,
   };
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>;

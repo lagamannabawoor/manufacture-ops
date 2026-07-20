@@ -3,7 +3,7 @@ import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
-import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail } from 'lucide-react';
+import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail, MapPin } from 'lucide-react';
 
 export default function Settings() {
   const { currentUser, logout } = useApp();
@@ -12,6 +12,7 @@ export default function Settings() {
   const [showUsers, setShowUsers] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [showReportEmails, setShowReportEmails] = useState(false);
+  const [showCompanyInfo, setShowCompanyInfo] = useState(false);
   const sections = [
     { id: 'factories', label: 'Factories', icon: Building2, color: 'text-blue-500 bg-blue-50' },
     { id: 'productCategories', label: 'Product Categories', icon: Layers, color: 'text-indigo-500 bg-indigo-50' },
@@ -67,6 +68,13 @@ export default function Settings() {
                 </div>
                 <ChevronRight size={16} className="text-gray-300" />
               </button>
+              <button onClick={() => setShowCompanyInfo(true)} className="w-full flex items-center justify-between px-4 py-4 border-t border-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-amber-600 bg-amber-50"><MapPin size={18} /></div>
+                  <span className="text-sm font-medium text-gray-700">Company Info &amp; Address</span>
+                </div>
+                <ChevronRight size={16} className="text-gray-300" />
+              </button>
             </div>
             <ResetSection />
           </>
@@ -78,6 +86,7 @@ export default function Settings() {
       {showUsers && <UserManagementPanel onClose={() => setShowUsers(false)} />}
       {showAudit && <AuditLog onBack={() => setShowAudit(false)} />}
       {showReportEmails && <ReportEmailsPanel onClose={() => setShowReportEmails(false)} />}
+      {showCompanyInfo && <CompanyInfoPanel onClose={() => setShowCompanyInfo(false)} />}
       {section && (
         <SectionEditor
           sectionId={section}
@@ -682,6 +691,67 @@ function ResetSection() {
             Reset Data
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CompanyInfoPanel({ onClose }) {
+  const app = useApp();
+  const ci = app.companyInfo || {};
+  const [form, setForm] = useState({
+    name:    ci.name    || '',
+    tagline: ci.tagline || '',
+    address: ci.address || '',
+    phone:   ci.phone   || '',
+    email:   ci.email   || '',
+    gstin:   ci.gstin   || '',
+    website: ci.website || '',
+  });
+  const [saved, setSaved] = useState(false);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); setSaved(false); }
+
+  function save() {
+    app.setCompanyInfo(form);
+    setSaved(true);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+      <Header title="Company Info" subtitle="Shown on quotes & invoices" onBack={onClose} />
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-28">
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
+          <Field label="Company Name">
+            <input className={inputCls} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. UrbanMud Bricks and Blocks" />
+          </Field>
+          <Field label="Tagline / Product Line">
+            <input className={inputCls} value={form.tagline} onChange={e => set('tagline', e.target.value)} placeholder="e.g. CSEB Mud Blocks · Concrete Blocks · Pavers" />
+          </Field>
+          <Field label="Address">
+            <textarea className={inputCls} rows={3} value={form.address} onChange={e => set('address', e.target.value)} placeholder={'Street, Area,\nCity - Pincode'} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Phone">
+              <input className={inputCls} type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+91 XXXXX XXXXX" />
+            </Field>
+            <Field label="Email">
+              <input className={inputCls} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="info@..." />
+            </Field>
+          </div>
+          <Field label="GSTIN">
+            <input className={inputCls} value={form.gstin} onChange={e => set('gstin', e.target.value)} placeholder="22AAAAA0000A1Z5" />
+          </Field>
+          <Field label="Website (optional)">
+            <input className={inputCls} value={form.website} onChange={e => set('website', e.target.value)} placeholder="www.urbanmud.in" />
+          </Field>
+        </div>
+      </div>
+      <div className="px-4 py-3 bg-white border-t border-gray-100">
+        {saved && <p className="text-xs text-green-600 font-semibold text-center mb-2">✓ Saved successfully</p>}
+        <button onClick={save} className="w-full bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 rounded-xl text-sm">
+          Save Company Info
+        </button>
       </div>
     </div>
   );

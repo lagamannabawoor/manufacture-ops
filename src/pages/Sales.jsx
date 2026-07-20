@@ -234,6 +234,7 @@ export default function Sales() {
           doc={viewing.doc}
           type={viewing.type}
           products={app.products || []}
+          companyInfo={app.companyInfo || {}}
           onClose={() => setViewing(null)}
           onConvert={viewing.type === 'quote' && canWrite ? () => convertToInvoice(viewing.doc) : null}
           onEdit={canWrite ? () => { setViewing(null); openEdit(viewing.type, viewing.doc); } : null}
@@ -524,7 +525,14 @@ function LineItemRow({ item, idx, products, productCategories, onChange, onRemov
 }
 
 // ── View / Print document ─────────────────────────────────────────────────────
-function DocViewer({ doc, type, products, onClose, onConvert, onEdit }) {
+function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdit }) {
+  const ci = companyInfo || {};
+  const coName    = ci.name    || 'UrbanMud Bricks and Blocks';
+  const coTagline = ci.tagline || '';
+  const coAddress = ci.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
+  const coPhone   = ci.phone   || '';
+  const coEmail   = ci.email   || '';
+  const coGSTIN   = ci.gstin   || '';
   const isQuote = type === 'quote';
   const docNo = isQuote ? doc.quoteNumber : doc.invoiceNumber;
   const { subtotal, discAmt, taxable, cgst, sgst, igst, total } = calcDoc(
@@ -540,28 +548,22 @@ function DocViewer({ doc, type, products, onClose, onConvert, onEdit }) {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; font-size: 12px; color: #333; padding: 30px; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #92400e; padding-bottom: 16px; }
-        .company-name { font-size: 22px; font-weight: bold; color: #92400e; }
-        .company-sub { font-size: 11px; color: #666; margin-top: 2px; }
-        .doc-title { font-size: 18px; font-weight: bold; text-align: right; color: #333; }
-        .doc-meta { font-size: 11px; color: #666; text-align: right; margin-top: 4px; }
-        .section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px; }
-        .box-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 6px; }
-        .box-val { font-size: 12px; font-weight: 600; color: #222; }
-        .box-sub { font-size: 11px; color: #555; margin-top: 2px; }
         table { width: 100%; border-collapse: collapse; margin: 16px 0; }
         th { background: #92400e; color: white; padding: 8px 10px; text-align: left; font-size: 11px; }
         td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 11px; }
         tr:nth-child(even) td { background: #fef9f0; }
-        .totals { margin-left: auto; width: 280px; }
-        .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
-        .total-final { font-size: 14px; font-weight: bold; color: #92400e; border-top: 2px solid #92400e; padding-top: 8px; margin-top: 6px; }
-        .in-words { font-style: italic; color: #555; font-size: 11px; margin: 10px 0; }
-        .terms { font-size: 10px; color: #666; margin-top: 16px; border-top: 1px solid #eee; padding-top: 12px; white-space: pre-line; }
-        .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #aaa; }
-        @media print { body { padding: 15px; } }
+        .sign-section { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 40px; padding-top: 16px; border-top: 1px solid #eee; }
+        .sign-box { text-align: center; }
+        .sign-line { border-top: 1.5px solid #555; margin-bottom: 6px; margin-top: 40px; }
+        .sign-label { font-size: 10px; font-weight: bold; color: #333; }
+        .sign-sub { font-size: 9px; color: #777; margin-top: 2px; }
+        .back-btn { position: fixed; top: 12px; left: 12px; background: #92400e; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; z-index: 9999; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        @media print { .back-btn { display: none !important; } body { padding: 15px; } }
       </style>
-    </head><body>${content}</body></html>`);
+    </head><body>
+      <button class="back-btn" onclick="window.close()">&#8592; Back</button>
+      ${content}
+    </body></html>`);
     win.document.close();
     setTimeout(() => win.print(), 400);
   }
@@ -591,10 +593,13 @@ function DocViewer({ doc, type, products, onClose, onConvert, onEdit }) {
 
           {/* Company header */}
           <div className="flex justify-between items-start pb-4 border-b-2 border-amber-700 mb-4">
-            <div>
-              <p className="company-name text-xl font-bold text-amber-700">URBANMUD</p>
-              <p className="text-xs text-gray-500 mt-0.5">Bricks &amp; Blocks Manufacturing</p>
-              <p className="text-xs text-gray-500">Tamil Nadu, India</p>
+            <div className="max-w-[55%]">
+              <p className="text-xl font-bold text-amber-700 leading-tight">{coName.toUpperCase()}</p>
+              {coTagline && <p className="text-[10px] text-gray-500 mt-0.5">{coTagline}</p>}
+              <p className="text-xs text-gray-500 mt-1 whitespace-pre-line leading-snug">{coAddress}</p>
+              {coPhone && <p className="text-xs text-gray-500">Ph: {coPhone}</p>}
+              {coEmail && <p className="text-xs text-gray-500">{coEmail}</p>}
+              {coGSTIN && <p className="text-xs font-semibold text-gray-600 mt-0.5">GSTIN: {coGSTIN}</p>}
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-gray-700">{isQuote ? 'QUOTATION' : 'TAX INVOICE'}</p>
@@ -712,6 +717,23 @@ function DocViewer({ doc, type, products, onClose, onConvert, onEdit }) {
               <p className="text-xs text-gray-500 whitespace-pre-line">{doc.terms}</p>
             </div>
           )}
+
+          {/* Signing Authorities */}
+          <div className="mt-8 pt-5 border-t border-gray-200">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {[{ label: 'Customer Signature', sub: 'Name & Seal' },
+                { label: 'Prepared By',        sub: '' },
+                { label: 'Authorised Signatory', sub: `For ${coName}` }].map(s => (
+                <div key={s.label} className="sign-box">
+                  <div className="h-10" />
+                  <div className="border-t border-gray-400 pt-1.5">
+                    <p className="text-[10px] font-bold text-gray-600">{s.label}</p>
+                    {s.sub && <p className="text-[9px] text-gray-400 mt-0.5">{s.sub}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <p className="text-center text-[10px] text-gray-300 mt-5">Generated by Urbanmud Manufacturing Ops</p>
         </div>
