@@ -119,16 +119,16 @@ function buildFinancePDF(type, entry, meta, ci) {
   const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
   const coPhone   = ci?.phone   || '';
   const coGSTIN   = ci?.gstin   || '';
-  const A = [146,64,14], DK = [30,30,30], MD = [90,90,90], LT = [190,190,190];
+  const A = [15,30,80], DK = [20,24,35], MD = [75,85,99], LT = [148,163,184];
   const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = ML;
 
   const CFG = {
-    expense:          { title: 'EXPENSE VOUCHER',        badge: 'EXPENSE AMOUNT',    col: [254,242,242], tcol: [220,38,38]  },
-    labor:            { title: 'LABOUR PAYMENT VOUCHER', badge: 'AMOUNT PAID',        col: [238,242,255], tcol: [79,70,229]  },
-    payment_received: { title: 'PAYMENT RECEIPT',        badge: 'AMOUNT RECEIVED',   col: [240,253,244], tcol: [22,163,74]  },
-    payment_paid:     { title: 'PAYMENT ORDER',          badge: 'AMOUNT PAID',        col: [254,242,242], tcol: [220,38,38]  },
+    expense:          { title: 'EXPENSE VOUCHER',        badge: 'EXPENSE AMOUNT',    col: [236,239,244], tcol: [15,30,80]   },
+    labor:            { title: 'LABOUR PAYMENT VOUCHER', badge: 'AMOUNT PAID',        col: [236,239,244], tcol: [15,30,80]   },
+    payment_received: { title: 'PAYMENT RECEIPT',        badge: 'AMOUNT RECEIVED',   col: [236,244,238], tcol: [21,128,61]  },
+    payment_paid:     { title: 'PAYMENT ORDER',          badge: 'AMOUNT PAID',        col: [236,239,244], tcol: [15,30,80]   },
   };
   const cfg = CFG[type] || CFG.expense;
   const vno = (entry.id || '').slice(-8).toUpperCase() || 'VCH';
@@ -182,7 +182,7 @@ function buildFinancePDF(type, entry, meta, ci) {
     body: rows, showHead: 'never',
     bodyStyles: { fontSize:10.5, textColor:DK, cellPadding:4 },
     columnStyles: { 0:{ cellWidth:52, fontStyle:'bold', textColor:MD }, 1:{ fontStyle:'normal' } },
-    alternateRowStyles: { fillColor:[255,248,235] },
+    alternateRowStyles: { fillColor:[247,249,252] },
   });
   y = pdf.lastAutoTable.finalY + 7;
 
@@ -201,6 +201,7 @@ function buildFinancePDF(type, entry, meta, ci) {
   [['Prepared By',''],['Verified By',''],['Authorised Signatory','For '+coName]]
     .forEach(([lbl,sub],i) => {
       const cx = ML+i*sw+sw/2;
+      if (i===2 && ci?.signature) { try { pdf.addImage(ci.signature,'PNG',ML+i*sw+4,y-14,sw-8,12); } catch(e){} }
       pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(cx-sw/2+6,y,cx+sw/2-6,y);
       pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text(lbl,cx,y+5,{align:'center'});
       if(sub){pdf.setFontSize(7);pdf.setFont('helvetica','normal');pdf.setTextColor(...MD);pdf.text(sub,cx,y+9,{align:'center'});}
@@ -220,7 +221,7 @@ function buildExpenseURDPDF(expense, meta, ci) {
   const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
   const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
   const coGSTIN   = ci?.gstin   || '';
-  const A = [146,64,14], DK = [30,30,30], MD = [90,90,90], LT = [190,190,190];
+  const A = [15,30,80], DK = [20,24,35], MD = [75,85,99], LT = [148,163,184];
   const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = 0;
@@ -277,15 +278,15 @@ function buildExpenseURDPDF(expense, meta, ci) {
     headStyles: { fillColor:A, textColor:[255,255,255], fontStyle:'bold', fontSize:9 },
     bodyStyles: { fontSize:9, textColor:DK, cellPadding:3 },
     columnStyles: { 0:{cellWidth:8}, 1:{cellWidth:32}, 3:{cellWidth:18}, 4:{cellWidth:28,halign:'right',fontStyle:'bold'} },
-    alternateRowStyles: { fillColor:[255,248,235] },
-    didParseCell: (data) => { if (data.row.index === rows.length-1) { data.cell.styles.fillColor=[254,243,199]; data.cell.styles.fontStyle='bold'; } },
+    alternateRowStyles: { fillColor:[247,249,252] },
+    didParseCell: (data) => { if (data.row.index === rows.length-1) { data.cell.styles.fillColor=[226,232,240]; data.cell.styles.fontStyle='bold'; } },
   });
   y = pdf.lastAutoTable.finalY + 8;
 
   // RCM notice
   if (y+20>H-50) { pdf.addPage(); y=ML; }
-  pdf.setFillColor(254,243,199); pdf.roundedRect(ML, y, CW, 18, 2, 2, 'F');
-  pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(180,83,9); pdf.text('REVERSE CHARGE NOTICE:', ML+4, y+6);
+  pdf.setFillColor(232,236,242); pdf.roundedRect(ML, y, CW, 18, 2, 2, 'F');
+  pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A); pdf.text('REVERSE CHARGE NOTICE:', ML+4, y+6);
   pdf.setFontSize(7.5); pdf.setFont('helvetica','normal'); pdf.setTextColor(...DK);
   pdf.text('Tax is payable on reverse charge basis as per Section 9(4) of CGST Act 2017.', ML+4, y+12);
   pdf.text('Buyer ('+coName+') is liable to pay applicable GST.', ML+4, y+17);
@@ -298,6 +299,7 @@ function buildExpenseURDPDF(expense, meta, ci) {
   [['Supplier / Payee', expense.urdSupplierName||''],['Prepared By',''],['Authorised Signatory','For '+coName]]
     .forEach(([lbl,sub],i) => {
       const cx = ML+i*sw+sw/2;
+      if (i===2 && ci?.signature) { try { pdf.addImage(ci.signature,'PNG',ML+i*sw+4,y-14,sw-8,12); } catch(e){} }
       pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(cx-sw/2+6,y,cx+sw/2-6,y);
       pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text(lbl,cx,y+5,{align:'center'});
       if(sub){pdf.setFontSize(7);pdf.setFont('helvetica','normal');pdf.setTextColor(...MD);pdf.text(sub,cx,y+9,{align:'center'});}

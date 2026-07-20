@@ -186,8 +186,8 @@ function buildReportPDF(rangeLabel, {
     doc.on('error', reject);
 
     const ML = 40, PW = 515; // 595 - 40*2
-    const AMBER = '#92400e', DARK = '#1f2937', GRAY = '#6b7280';
-    const GREEN = '#15803d', RED = '#dc2626', LINE = '#e5e7eb', BG = '#f3f4f6';
+    const NAVY = '#0f1e50', DARK = '#1f2937', GRAY = '#6b7280';
+    const GREEN = '#15803d', RED = '#dc2626', LINE = '#e2e8f0', BG = '#e8ecf4';
 
     const coName = (companyInfo?.name || 'UrbanMud Bricks and Blocks').toUpperCase();
     const coAddr = (companyInfo?.address || 'Bhaktharahalli, Poojeana Agrahara, near Hoskote, Bangalore - 562114').replace(/\n/g, ', ');
@@ -200,14 +200,14 @@ function buildReportPDF(rangeLabel, {
 
     function drawPageBanner() {
       const y = doc.y;
-      doc.rect(ML, y, PW, 52).fill(AMBER);
+      doc.rect(ML, y, PW, 52).fill(NAVY);
       doc.font('Helvetica-Bold').fontSize(13).fillColor('#ffffff');
       doc.text(coName, ML + 8, y + 7, { width: PW - 165, lineBreak: false });
-      doc.font('Helvetica').fontSize(7).fillColor('#fcd34d');
+      doc.font('Helvetica').fontSize(7).fillColor('#94a3b8');
       doc.text(coAddr + coPhone + coGSTIN, ML + 8, y + 24, { width: PW - 165 });
       doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff');
       doc.text('BUSINESS REPORT', ML + PW - 155, y + 7, { width: 150, align: 'right', lineBreak: false });
-      doc.font('Helvetica').fontSize(8).fillColor('#fcd34d');
+      doc.font('Helvetica').fontSize(8).fillColor('#94a3b8');
       doc.text(rangeLabel, ML + PW - 155, y + 23, { width: 150, align: 'right' });
       const ts = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
       doc.text('Generated: ' + ts, ML + PW - 155, y + 34, { width: 150, align: 'right' });
@@ -218,19 +218,33 @@ function buildReportPDF(rangeLabel, {
       if (doc.y + h > 760) { doc.addPage(); drawPageBanner(); }
     }
 
-    function secTitle(title, col) {
+    function secTitle(title) {
       ensureSpace(34);
       const y = doc.y + 6;
-      doc.rect(ML, y, PW, 21).fill(col + '22');
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(col);
-      doc.text(title, ML + 8, y + 6, { width: PW - 16 });
-      doc.y = y + 27;
+      doc.rect(ML, y, PW, 22).fill('#eef1f8');
+      doc.rect(ML, y, 4, 22).fill(NAVY);
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(NAVY);
+      doc.text(title, ML + 10, y + 6, { width: PW - 18, lineBreak: false });
+      doc.y = y + 28;
     }
 
     function table(headers, widths, rows, empty) {
-      const HH = 19, RH = 16;
+      const HH = 19;
       const TW = widths.reduce((s, w) => s + w, 0);
-      ensureSpace(HH + (rows.length || 1) * RH + 4);
+
+      // Pre-calculate row heights so multi-line cells don't clip
+      doc.font('Helvetica').fontSize(7.5);
+      const rowHeights = rows.map(row => {
+        let maxH = 16;
+        row.forEach((cell, ci) => {
+          const txt = cell == null ? '' : String(cell);
+          const h = doc.heightOfString(txt, { width: widths[ci] - 6 });
+          maxH = Math.max(maxH, Math.ceil(h) + 8);
+        });
+        return maxH;
+      });
+
+      ensureSpace(HH + Math.min(rowHeights.slice(0, 3).reduce((s, h) => s + h, 0) || 20, 80) + 4);
       let y = doc.y;
 
       const drawHead = (startY) => {
@@ -241,7 +255,7 @@ function buildReportPDF(rangeLabel, {
           doc.text(h, x + 3, startY + 5, { width: widths[i] - 6, lineBreak: false });
           x += widths[i];
         });
-        doc.moveTo(ML, startY + HH).lineTo(ML + TW, startY + HH).strokeColor('#d1d5db').lineWidth(0.5).stroke();
+        doc.moveTo(ML, startY + HH).lineTo(ML + TW, startY + HH).strokeColor('#cbd5e1').lineWidth(0.5).stroke();
         return startY + HH;
       };
 
@@ -250,17 +264,18 @@ function buildReportPDF(rangeLabel, {
       if (!rows.length) {
         doc.font('Helvetica').fontSize(8).fillColor('#9ca3af');
         doc.text(empty || 'No data for this period', ML + 4, y + 4);
-        y += RH;
+        y += 20;
       } else {
         rows.forEach((row, ri) => {
+          const RH = rowHeights[ri];
           if (y + RH > 760) { doc.y = y; doc.addPage(); drawPageBanner(); y = drawHead(doc.y); }
-          if (ri % 2 === 1) doc.rect(ML, y, TW, RH).fill('#f9fafb');
-          doc.font('Helvetica').fontSize(7.5).fillColor(DARK);
+          if (ri % 2 === 1) doc.rect(ML, y, TW, RH).fill('#f8fafc');
           let rx = ML;
           row.forEach((cell, ci) => {
             const last = ci === row.length - 1;
             const txt = cell == null ? '' : String(cell);
-            doc.text(txt, rx + 3, y + 4, { width: widths[ci] - 6, lineBreak: false, align: last ? 'right' : 'left' });
+            doc.font('Helvetica').fontSize(7.5).fillColor(DARK);
+            doc.text(txt, rx + 3, y + 4, { width: widths[ci] - 6, lineBreak: true, align: last ? 'right' : 'left' });
             rx += widths[ci];
           });
           doc.moveTo(ML, y + RH).lineTo(ML + TW, y + RH).strokeColor(LINE).lineWidth(0.3).stroke();
@@ -284,7 +299,7 @@ function buildReportPDF(rangeLabel, {
     ];
     ensureSpace(76);
     const ky = doc.y + 4;
-    doc.rect(ML, ky, PW, 64).fillAndStroke('#fef3c7', '#fde68a').lineWidth(0.5);
+    doc.rect(ML, ky, PW, 64).fillAndStroke('#f8fafc', '#e2e8f0').lineWidth(0.5);
     const kw = PW / 3;
     kpis.forEach((k, i) => {
       const kx = ML + (i % 3) * kw + 8;
@@ -295,7 +310,7 @@ function buildReportPDF(rangeLabel, {
     doc.y = ky + 72;
 
     // ── 1. Production ────────────────────────────────────────────────────────
-    secTitle('1.  PRODUCTION DETAILS', '#1d4ed8');
+    secTitle('1.  PRODUCTION DETAILS');
     table(
       ['Factory', 'Product', 'Qty (pcs)', 'Cement (bags)', 'Notes'],
       [100, 150, 70, 100, 95],
@@ -314,7 +329,7 @@ function buildReportPDF(rangeLabel, {
     }
 
     // ── 2. Incoming Payments ─────────────────────────────────────────────────
-    secTitle('2.  INCOMING PAYMENTS  (Sales)', GREEN);
+    secTitle('2.  INCOMING PAYMENTS  (Sales)');
     table(
       ['Date', 'Customer', 'Product', 'Order #', 'Bank Account', 'Received'],
       [55, 115, 110, 65, 90, 80],
@@ -326,7 +341,7 @@ function buildReportPDF(rangeLabel, {
     );
 
     // ── 3. Material Purchases ────────────────────────────────────────────────
-    secTitle('3.  MATERIAL PURCHASES', '#1d4ed8');
+    secTitle('3.  MATERIAL PURCHASES');
     table(
       ['Date', 'Material', 'Qty', 'Rate', 'Supplier', 'Bill No', 'Amount'],
       [55, 90, 60, 65, 85, 65, 95],
@@ -340,7 +355,7 @@ function buildReportPDF(rangeLabel, {
     );
 
     // ── 4. Material Stock ────────────────────────────────────────────────────
-    secTitle('4.  MATERIAL STOCK  (cumulative, all-time)', '#b45309');
+    secTitle('4.  MATERIAL STOCK  (cumulative, all-time)');
     table(
       ['Material', 'Unit', 'Total Purchased', 'Total Used', 'Current Stock'],
       [160, 60, 100, 100, 95],
@@ -349,7 +364,7 @@ function buildReportPDF(rangeLabel, {
     );
 
     // ── 5. Labour Payments ───────────────────────────────────────────────────
-    secTitle('5.  LABOUR PAYMENTS', '#065f46');
+    secTitle('5.  LABOUR PAYMENTS');
     table(
       ['Date', 'Labour Group', 'Type', 'Bank Account', 'Notes', 'Amount'],
       [55, 105, 65, 95, 100, 95],
@@ -358,7 +373,7 @@ function buildReportPDF(rangeLabel, {
     );
 
     // ── 6. Other Expenses ────────────────────────────────────────────────────
-    secTitle('6.  OTHER EXPENSES', '#7c3aed');
+    secTitle('6.  OTHER EXPENSES');
     table(
       ['Date', 'Category', 'Description', 'Bank Account', 'Notes', 'Amount'],
       [55, 90, 105, 95, 80, 90],
@@ -367,7 +382,7 @@ function buildReportPDF(rangeLabel, {
     );
 
     // ── 7. P&L Summary ───────────────────────────────────────────────────────
-    secTitle('7.  FINANCIAL SUMMARY  —  P & L', AMBER);
+    secTitle('7.  FINANCIAL SUMMARY  —  P & L');
     ensureSpace(140);
     const sy = doc.y, SW = 310;
     const rows = [
@@ -399,11 +414,15 @@ function buildReportPDF(rangeLabel, {
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(range.start + i);
-      doc.font('Helvetica').fontSize(7).fillColor('#9ca3af');
+      const savedBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+      doc.font('Helvetica').fontSize(7).fillColor('#94a3b8');
+      doc.moveTo(ML, doc.page.height - 22).lineTo(ML + PW, doc.page.height - 22).strokeColor('#e2e8f0').lineWidth(0.4).stroke();
       doc.text(
         `Page ${i + 1} of ${range.count}  \u00b7  Urbanmud Business Report  \u00b7  ${rangeLabel}  \u00b7  CONFIDENTIAL`,
-        ML, 822, { width: PW, align: 'center', lineBreak: false }
+        ML, doc.page.height - 18, { width: PW, align: 'center', lineBreak: false }
       );
+      doc.page.margins.bottom = savedBottom;
     }
 
     doc.flushPages();

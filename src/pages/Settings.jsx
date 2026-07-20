@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
@@ -722,17 +722,128 @@ function ResetSection() {
   );
 }
 
+function SignaturePad({ value, onChange }) {
+  const canvasRef = useRef(null);
+  const [drawing, setDrawing]     = useState(false);
+  const [mode, setMode]           = useState('draw');
+  const [hasContent, setHasContent] = useState(!!value);
+
+  useEffect(() => {
+    if (value && canvasRef.current) {
+      const img = new Image();
+      img.onload = () => {
+        const c = canvasRef.current;
+        if (c) c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      };
+      img.src = value;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function getPos(e) {
+    const c = canvasRef.current;
+    const r = c.getBoundingClientRect();
+    const sx = c.width / r.width, sy = c.height / r.height;
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
+  }
+  function onStart(e) {
+    e.preventDefault();
+    const ctx = canvasRef.current.getContext('2d');
+    const p = getPos(e);
+    ctx.beginPath(); ctx.moveTo(p.x, p.y);
+    setDrawing(true);
+  }
+  function onMove(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const ctx = canvasRef.current.getContext('2d');
+    const p = getPos(e);
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#0f1e50';
+    ctx.lineTo(p.x, p.y); ctx.stroke();
+    setHasContent(true);
+  }
+  function onEnd() {
+    if (!drawing) return;
+    setDrawing(false);
+    onChange(canvasRef.current.toDataURL('image/png'));
+  }
+  function clear() {
+    const c = canvasRef.current;
+    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    setHasContent(false); onChange('');
+  }
+  function handleUpload(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target.result;
+      onChange(dataUrl); setHasContent(true);
+      if (canvasRef.current) {
+        const img = new Image();
+        img.onload = () => {
+          const c = canvasRef.current, ctx = c.getContext('2d');
+          ctx.clearRect(0, 0, c.width, c.height);
+          const ratio = Math.min(c.width / img.width, c.height / img.height);
+          const w = img.width * ratio, h = img.height * ratio;
+          ctx.drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+        };
+        img.src = dataUrl;
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        {['draw','upload'].map(m => (
+          <button key={m} onClick={() => setMode(m)}
+            className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${mode === m ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600'}`}>
+            {m === 'draw' ? '✍️ Draw' : '📎 Upload'}
+          </button>
+        ))}
+        {hasContent && (
+          <button onClick={clear} className="ml-auto text-xs px-3 py-1 rounded-full bg-red-50 text-red-600 font-medium">
+            Clear
+          </button>
+        )}
+      </div>
+      {mode === 'draw' ? (
+        <div className="relative">
+          <canvas ref={canvasRef} width={480} height={130}
+            className="w-full h-[90px] border-2 border-dashed border-gray-300 rounded-lg bg-white touch-none cursor-crosshair"
+            onMouseDown={onStart} onMouseMove={onMove} onMouseUp={onEnd} onMouseLeave={onEnd}
+            onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}
+          />
+          {!hasContent && <p className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 pointer-events-none">Draw your signature here</p>}
+        </div>
+      ) : (
+        <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center">
+          <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={handleUpload} className="hidden" id="sig-upload" />
+          <label htmlFor="sig-upload" className="cursor-pointer text-sm text-slate-700 font-medium">
+            📁 Tap to upload PNG / JPG signature
+          </label>
+          {hasContent && value && <img src={value} alt="Signature preview" className="mt-3 max-h-16 mx-auto object-contain rounded border border-gray-200 p-1 bg-white" />}
+        </div>
+      )}
+      <p className="text-xs text-gray-400 mt-1">This signature will appear on all Invoices, Quotes, URD Receipts and Vouchers.</p>
+    </div>
+  );
+}
+
 function CompanyInfoPanel({ onClose }) {
   const app = useApp();
   const ci = app.companyInfo || {};
   const [form, setForm] = useState({
-    name:    ci.name    || '',
-    tagline: ci.tagline || '',
-    address: ci.address || '',
-    phone:   ci.phone   || '',
-    email:   ci.email   || '',
-    gstin:   ci.gstin   || '',
-    website: ci.website || '',
+    name:      ci.name      || '',
+    tagline:   ci.tagline   || '',
+    address:   ci.address   || '',
+    phone:     ci.phone     || '',
+    email:     ci.email     || '',
+    gstin:     ci.gstin     || '',
+    website:   ci.website   || '',
+    signature: ci.signature || '',
   });
   const [saved, setSaved] = useState(false);
 
@@ -745,7 +856,7 @@ function CompanyInfoPanel({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
-      <Header title="Company Info" subtitle="Shown on quotes & invoices" onBack={onClose} />
+      <Header title="Company Info" subtitle="Shown on quotes, invoices & all PDFs" onBack={onClose} />
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-28">
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
           <Field label="Company Name">
@@ -772,10 +883,16 @@ function CompanyInfoPanel({ onClose }) {
             <input className={inputCls} value={form.website} onChange={e => set('website', e.target.value)} placeholder="www.urbanmud.in" />
           </Field>
         </div>
+
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <p className="text-sm font-semibold text-slate-800 mb-1">Authorised Signature</p>
+          <p className="text-xs text-gray-500 mb-3">Appears on the Authorised Signatory section of all outgoing PDFs.</p>
+          <SignaturePad value={form.signature} onChange={v => set('signature', v)} />
+        </div>
       </div>
       <div className="px-4 py-3 bg-white border-t border-gray-100">
         {saved && <p className="text-xs text-green-600 font-semibold text-center mb-2">✓ Saved successfully</p>}
-        <button onClick={save} className="w-full bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 rounded-xl text-sm">
+        <button onClick={save} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 rounded-xl text-sm">
           Save Company Info
         </button>
       </div>

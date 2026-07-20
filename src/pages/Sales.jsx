@@ -557,10 +557,10 @@ function buildPDF(docData, type, ci) {
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
-  const A  = [146, 64, 14];    // amber
-  const DK = [30, 30, 30];     // dark
-  const MD = [90, 90, 90];     // mid
-  const LT = [190, 190, 190];  // light
+  const A  = [15, 30, 80];     // deep navy (primary)
+  const DK = [20, 24, 35];     // near-black
+  const MD = [75, 85, 99];     // slate gray
+  const LT = [148, 163, 184];  // light slate
   const rp = (n) => 'Rs.' + fmt(n); // jsPDF standard fonts can't render ₹
 
   let y = ML;
@@ -649,7 +649,7 @@ function buildPDF(docData, type, ci) {
     margin: { left: ML, right: MR },
     headStyles: { fillColor: A, textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', cellPadding: 3.5 },
     bodyStyles: { fontSize: 8.5, textColor: DK, cellPadding: 3 },
-    alternateRowStyles: { fillColor: [255, 248, 235] },
+    alternateRowStyles: { fillColor: [247, 249, 252] },
     columnStyles: {
       0: { cellWidth: 8,  halign: 'center' },
       2: { cellWidth: 16, halign: 'center' },
@@ -675,7 +675,7 @@ function buildPDF(docData, type, ci) {
   if (cgst > 0) trow('CGST (' + (Number(docData.taxRate)/2) + '%)', rp(cgst));
   if (sgst > 0) trow('SGST (' + (Number(docData.taxRate)/2) + '%)', rp(sgst));
   if (igst > 0) trow('IGST (' + docData.taxRate + '%)', rp(igst));
-  pdf.setDrawColor(...A); pdf.setLineWidth(0.4); pdf.line(TX, y, W - MR, y); y += 4;
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.5); pdf.line(TX, y, W - MR, y); y += 4;
   trow('TOTAL', rp(total), true, A);
   if (!isQ && Number(docData.paidAmount) > 0) {
     trow('Paid', '- ' + rp(Number(docData.paidAmount)), false, [22, 163, 74]);
@@ -718,6 +718,11 @@ function buildPDF(docData, type, ci) {
   [['Customer Signature', 'Name & Seal'], ['Prepared By', ''], ['Authorised Signatory', 'For ' + coName]]
     .forEach(([label, sub], i) => {
       const cx = ML + i * sw + sw / 2;
+      const sigX = ML + i * sw + 4;
+      const sigW = sw - 8;
+      if (i === 2 && ci?.signature) {
+        try { pdf.addImage(ci.signature, 'PNG', sigX, y - 14, sigW, 12); } catch(e) {}
+      }
       pdf.setDrawColor(...MD); pdf.setLineWidth(0.4);
       pdf.line(cx - sw/2 + 6, y, cx + sw/2 - 6, y);
       pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
