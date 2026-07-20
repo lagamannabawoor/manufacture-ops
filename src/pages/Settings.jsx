@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
-import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail, MapPin } from 'lucide-react';
+import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp } from 'lucide-react';
+import { DOC_MAP } from '../services/firestoreDb';
 
 export default function Settings() {
   const { currentUser, logout } = useApp();
@@ -13,6 +14,7 @@ export default function Settings() {
   const [showAudit, setShowAudit] = useState(false);
   const [showReportEmails, setShowReportEmails] = useState(false);
   const [showCompanyInfo, setShowCompanyInfo] = useState(false);
+  const [showBackup, setShowBackup]       = useState(false);
   const sections = [
     { id: 'factories', label: 'Factories', icon: Building2, color: 'text-blue-500 bg-blue-50' },
     { id: 'productCategories', label: 'Product Categories', icon: Layers, color: 'text-indigo-500 bg-indigo-50' },
@@ -75,6 +77,16 @@ export default function Settings() {
                 </div>
                 <ChevronRight size={16} className="text-gray-300" />
               </button>
+              <button onClick={() => setShowBackup(true)} className="w-full flex items-center justify-between px-4 py-4 border-t border-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-emerald-600 bg-emerald-50"><Database size={18} /></div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Backup &amp; Restore</span>
+                    <p className="text-[11px] text-gray-400 leading-tight">Export / import all data</p>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-gray-300" />
+              </button>
             </div>
             <ResetSection />
           </>
@@ -87,6 +99,7 @@ export default function Settings() {
       {showAudit && <AuditLog onBack={() => setShowAudit(false)} />}
       {showReportEmails && <ReportEmailsPanel onClose={() => setShowReportEmails(false)} />}
       {showCompanyInfo && <CompanyInfoPanel onClose={() => setShowCompanyInfo(false)} />}
+      {showBackup     && <BackupRestorePanel onClose={() => setShowBackup(false)} />}
       {section && (
         <SectionEditor
           sectionId={section}
@@ -752,6 +765,202 @@ function CompanyInfoPanel({ onClose }) {
         <button onClick={save} className="w-full bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 rounded-xl text-sm">
           Save Company Info
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── BACKUP & RESTORE ─────────────────────────────────────────── */
+const PREVIEW_KEYS = [
+  ['productionEntries', 'Production Entries'],
+  ['materialPurchases', 'Material Purchases'],
+  ['expenses',          'Expenses'],
+  ['laborPayments',     'Labour Payments'],
+  ['orders',            'Orders'],
+  ['orderPayments',     'Order Payments'],
+  ['quotes',            'Quotes'],
+  ['invoices',          'Invoices'],
+  ['products',          'Products'],
+  ['materialTypes',     'Material Types'],
+  ['laborGroups',       'Labour Groups'],
+  ['bankAccounts',      'Bank Accounts'],
+  ['expenseCategories', 'Expense Categories'],
+];
+
+function toBase64UTF8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  bytes.forEach(b => { binary += String.fromCharCode(b); });
+  return btoa(binary);
+}
+
+function BackupRestorePanel({ onClose }) {
+  const app = useApp();
+  const [busy, setBusy]       = useState('');   // '' | 'exporting' | 'reading' | 'restoring'
+  const [preview, setPreview] = useState(null); // null | { exportedAt, counts, rawData }
+  const fileRef = useRef(null);
+
+  async function handleExport() {
+    setBusy('exporting');
+    try {
+      const ALL_KEYS = Object.values(DOC_MAP).flat();
+      const backup = { _app: 'urbanmud-mfg-ops', _version: 2, _exportedAt: new Date().toISOString() };
+      ALL_KEYS.forEach(k => { if (app[k] !== undefined) backup[k] = app[k]; });
+      const json = JSON.stringify(backup, null, 2);
+      const filename = `urbanmud-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        const b64 = toBase64UTF8(json);
+        const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+        await Share.share({ title: filename, url: result.uri, dialogTitle: 'Backup — Share or Email' });
+      } catch {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (e) { alert('Export failed: ' + e.message); }
+    finally { setBusy(''); }
+  }
+
+  async function handleFileSelect(e) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setBusy('reading');
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (data._app !== 'urbanmud-mfg-ops') throw new Error('Not a valid Urbanmud backup file.');
+      const counts = {};
+      PREVIEW_KEYS.forEach(([k]) => { counts[k] = Array.isArray(data[k]) ? data[k].length : 0; });
+      setPreview({ exportedAt: data._exportedAt, counts, rawData: data });
+    } catch (err) { alert('Invalid file: ' + err.message); }
+    finally { setBusy(''); e.target.value = ''; }
+  }
+
+  async function handleRestore() {
+    if (!preview?.rawData) return;
+    const d = new Date(preview.exportedAt).toLocaleString('en-IN');
+    if (!window.confirm(`⚠️ WARNING\n\nThis will OVERWRITE all current app data with the backup from:\n${d}\n\nThis cannot be undone. Continue?`)) return;
+    setBusy('restoring');
+    try {
+      await app.restoreData(preview.rawData);
+      alert('✅ Data restored successfully! The app will now reload to apply changes.');
+      window.location.reload();
+    } catch (err) { alert('Restore failed: ' + err.message); setBusy(''); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-gray-50 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-100 shadow-sm">
+        <button onClick={onClose} className="text-gray-500 font-bold text-lg px-1">←</button>
+        <div>
+          <h2 className="font-bold text-gray-800 text-base">Backup &amp; Restore</h2>
+          <p className="text-xs text-gray-400">Export all data · Restore from a previous backup</p>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+
+        {/* EXPORT */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center"><FileDown size={20} className="text-emerald-600"/></div>
+            <div>
+              <p className="font-bold text-gray-800 text-sm">Export / Backup</p>
+              <p className="text-xs text-gray-400">Download a complete JSON snapshot of all your data</p>
+            </div>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 text-xs text-emerald-700 space-y-0.5">
+            {[
+              'All material purchases + bill images',
+              'Production history, expenses, labour payments',
+              'Sales quotes & invoices',
+              'Orders, payments, master data',
+              'Company info & settings',
+            ].map((l, i) => <p key={i} className="flex items-start gap-1"><span className="mt-0.5">✓</span> {l}</p>)}
+          </div>
+          <button onClick={handleExport} disabled={!!busy}
+            className="w-full py-3.5 bg-emerald-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform">
+            <FileDown size={16}/>
+            {busy === 'exporting' ? 'Preparing backup…' : 'Download / Share Backup File'}
+          </button>
+        </div>
+
+        {/* IMPORT */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center"><ArchiveRestore size={20} className="text-amber-600"/></div>
+            <div>
+              <p className="font-bold text-gray-800 text-sm">Import &amp; Restore</p>
+              <p className="text-xs text-gray-400">Restore from a previously exported .json backup</p>
+            </div>
+          </div>
+
+          {!preview ? (
+            <>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-red-500 mt-0.5 flex-shrink-0"/>
+                <p className="text-xs text-red-700">Restoring will <strong>permanently overwrite</strong> all current data. Always export a fresh backup before restoring.</p>
+              </div>
+              <button onClick={() => fileRef.current?.click()} disabled={!!busy}
+                className="w-full py-3.5 bg-amber-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform">
+                <FileUp size={16}/>
+                {busy === 'reading' ? 'Reading file…' : 'Select Backup File (.json)'}
+              </button>
+            </>
+          ) : (
+            <div>
+              {/* Preview */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3">
+                <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 mb-1"><CheckCircle size={13}/> Valid backup loaded</p>
+                <p className="text-xs text-emerald-600">Exported: {new Date(preview.exportedAt).toLocaleString('en-IN')}</p>
+              </div>
+
+              <p className="text-xs font-bold text-gray-500 mb-2">Records to be restored:</p>
+              <div className="bg-gray-50 rounded-xl p-3 mb-4 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                {PREVIEW_KEYS.filter(([k]) => preview.counts[k] > 0).map(([k, label]) => (
+                  <div key={k} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500 truncate">{label}</span>
+                    <span className="font-bold text-gray-800 ml-1">{preview.counts[k]}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-red-500 mt-0.5 flex-shrink-0"/>
+                <p className="text-xs text-red-700">All current data will be replaced. This cannot be undone.</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setPreview(null)} disabled={!!busy}
+                  className="flex-1 py-3 border border-gray-200 text-gray-600 font-semibold text-sm rounded-xl">
+                  Cancel
+                </button>
+                <button onClick={handleRestore} disabled={!!busy}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50">
+                  <ArchiveRestore size={15}/>
+                  {busy === 'restoring' ? 'Restoring…' : 'Restore Now'}
+                </button>
+              </div>
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleFileSelect} />
+        </div>
+
+        {/* Tips */}
+        <div className="bg-blue-50 rounded-2xl border border-blue-100 p-4">
+          <p className="text-xs font-bold text-blue-700 mb-2">Backup best practices</p>
+          <div className="text-xs text-blue-600 space-y-1">
+            <p>· Export a backup <strong>before every major operation</strong> (month-end, reset, etc.)</p>
+            <p>· Store backup files on Google Drive, email, or WhatsApp to yourself</p>
+            <p>· To migrate to a new phone: export on old device → install app → restore on new device</p>
+            <p>· After restore, the app reloads automatically — no data is lost if Firestore sync is active</p>
+          </div>
+        </div>
+
       </div>
     </div>
   );
