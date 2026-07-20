@@ -1,40 +1,172 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Package, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-function fmt(n) {
-  return new Intl.NumberFormat('en-IN').format(n || 0);
-}
+function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
+function rp(n)  { return 'Rs.' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0); }
 
 function genBillId() {
   const now = new Date();
   const d = now.toISOString().slice(0, 10).replace(/-/g, '');
   const t = (now.getTime() % 100000).toString().padStart(5, '0');
-  return `BILL-${d}-${t}`;
+  return `URD-${d}-${t}`;
 }
 
 function freshForm() {
   return {
-    date: todayISO(),
-    materialTypeId: '',
-    quantity: '',
-    ratePerUnit: '',
-    totalAmount: '',
-    supplier: '',
-    bankAccountId: '',
-    billNumber: genBillId(),
-    notes: '',
+    date: todayISO(), materialTypeId: '', quantity: '', ratePerUnit: '', totalAmount: '',
+    supplier: '', bankAccountId: '', billNumber: genBillId(), notes: '',
+    billMode: '',        // 'uploaded' | 'urd' | ''
+    billImage: '',       // compressed base64 JPEG
+    supplierAddress: '', // for URD bill
   };
+}
+
+async function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const MAX = 1200;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.65).split(',')[1]);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function buildURDPDF(purchase, matName, matUnit, ci) {
+  const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
+  const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
+  const coPhone   = ci?.phone   || '';
+  const coGSTIN   = ci?.gstin   || '';
+  const A = [146,64,14], DK = [30,30,30], MD = [90,90,90], LT = [190,190,190], AM = [180,83,9];
+  const W = 210, H = 297, ML = 14, MR = 14, CW = W - ML - MR;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let y = ML;
+
+  // URD Banner
+  pdf.setFillColor(255, 247, 237); pdf.rect(ML, y, CW, 13, 'F');
+  pdf.setDrawColor(...AM); pdf.setLineWidth(0.4); pdf.rect(ML, y, CW, 13);
+  pdf.setFontSize(9); pdf.setFont('helvetica','bold'); pdf.setTextColor(...AM);
+  pdf.text('SELF INVOICE — PURCHASE FROM UNREGISTERED DEALER (URD)', W/2, y+5, { align:'center' });
+  pdf.setFontSize(7.5); pdf.setFont('helvetica','normal');
+  pdf.text('Under Section 9(4) CGST Act 2017 / Rule 46A  |  GST payable under Reverse Charge (RCM)', W/2, y+10, { align:'center' });
+  y += 17;
+
+  // Left: company header
+  const hY = y;
+  pdf.setFontSize(14); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text(coName.toUpperCase(), ML, y+6); y += 10;
+  pdf.setFontSize(8); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  coAddress.split('\n').forEach(l => { pdf.text(l, ML, y); y += 4; });
+  if (coPhone) { pdf.text('Ph: '+coPhone, ML, y); y += 4; }
+  if (coGSTIN) { pdf.setFont('helvetica','bold'); pdf.text('GSTIN: '+coGSTIN, ML, y); pdf.setFont('helvetica','normal'); y += 4; }
+
+  // Right: doc meta
+  const mX = W-MR; let ry = hY+7;
+  pdf.setFontSize(11); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text(purchase.billNumber||'URD-SELF', mX, ry, { align:'right' }); ry += 7;
+  pdf.setFontSize(8); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  pdf.text('Date: '+(purchase.date||''), mX, ry, { align:'right' }); ry += 5;
+  pdf.text('Self Invoice (URD)', mX, ry, { align:'right' }); ry += 5;
+  pdf.text('RCM Applicable: YES', mX, ry, { align:'right' }); ry += 5;
+
+  y = Math.max(y, ry)+4;
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.6); pdf.line(ML, y, W-MR, y); y += 7;
+
+  // Buyer & Supplier
+  const hW = CW/2-3;
+  pdf.setFontSize(7); pdf.setFont('helvetica','bold'); pdf.setTextColor(...LT);
+  pdf.text('BUYER', ML, y); pdf.text('SUPPLIER (UNREGISTERED DEALER)', ML+hW+6, y); y += 4;
+  pdf.setFontSize(10); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK);
+  pdf.text(coName, ML, y); pdf.text(purchase.supplier||'(Name not provided)', ML+hW+6, y); y += 5;
+  pdf.setFontSize(8.5); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  if (purchase.supplierAddress) {
+    const sl = pdf.splitTextToSize(purchase.supplierAddress, hW);
+    pdf.text(sl, ML+hW+6, y); y += sl.length*4;
+  }
+  pdf.setFont('helvetica','bold'); pdf.setTextColor([220,38,38]);
+  pdf.text('GST Status: UNREGISTERED', ML+hW+6, y);
+  pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD); y += 8;
+  pdf.setDrawColor(...LT); pdf.setLineWidth(0.3); pdf.line(ML, y, W-MR, y); y += 6;
+
+  // Items table
+  const qty = Number(purchase.quantity)||0, rate = Number(purchase.ratePerUnit)||0;
+  const total = Number(purchase.totalAmount)||qty*rate;
+  autoTable(pdf, {
+    startY: y, margin: { left:ML, right:MR },
+    head: [['#','Description','Unit','Qty','Rate','Amount']],
+    body: [[1, matName||'Raw Material', matUnit||'unit', qty, rp(rate), rp(total)]],
+    headStyles: { fillColor:A, textColor:[255,255,255], fontSize:9, fontStyle:'bold', cellPadding:3.5 },
+    bodyStyles: { fontSize:9, textColor:DK, cellPadding:3.5 },
+    columnStyles: { 0:{cellWidth:8,halign:'center'}, 2:{cellWidth:18,halign:'center'}, 3:{cellWidth:14,halign:'right'}, 4:{cellWidth:28,halign:'right'}, 5:{cellWidth:30,halign:'right'} },
+  });
+  y = pdf.lastAutoTable.finalY + 7;
+
+  // Total
+  const TX = W-MR-70;
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.4); pdf.line(TX, y, W-MR, y); y += 4;
+  pdf.setFontSize(11); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text('TOTAL', TX, y); pdf.text(rp(total), W-MR, y, { align:'right' }); y += 8;
+
+  // RCM note
+  if (y+28>H-18) { pdf.addPage(); y=ML; }
+  pdf.setFillColor(255,247,237); pdf.rect(ML,y,CW,22,'F');
+  pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(...AM);
+  pdf.text('REVERSE CHARGE NOTICE', ML+3, y+6);
+  pdf.setFont('helvetica','normal'); pdf.setTextColor(...DK);
+  const rc = 'This self-invoice is issued for purchase from an Unregistered Dealer. '+coName+' is liable to pay GST under Reverse Charge Mechanism (RCM) as per Section 9(4) of CGST Act 2017. The supplier is not registered under GST.';
+  pdf.text(pdf.splitTextToSize(rc, CW-6), ML+3, y+12); y += 27;
+
+  // Notes
+  if (purchase.notes) {
+    if (y+20>H-18) { pdf.addPage(); y=ML; }
+    pdf.setFontSize(7); pdf.setFont('helvetica','bold'); pdf.setTextColor(...LT);
+    pdf.text('NOTES', ML, y); y += 4;
+    pdf.setFontSize(8); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+    const nl = pdf.splitTextToSize(purchase.notes, CW); pdf.text(nl, ML, y); y += nl.length*4+5;
+  }
+
+  // Signing
+  if (y+35>H-18) { pdf.addPage(); y=ML; }
+  y += 5; pdf.setDrawColor(...LT); pdf.setLineWidth(0.3); pdf.line(ML,y,W-MR,y); y += 15;
+  const sw = CW/3;
+  [["Supplier's Signature","(Unregistered Dealer)"],['Prepared By',''],['Authorised Signatory','For '+coName]]
+    .forEach(([lbl,sub],i)=>{
+      const cx = ML+i*sw+sw/2;
+      pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(cx-sw/2+6,y,cx+sw/2-6,y);
+      pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(...DK); pdf.text(lbl,cx,y+5,{align:'center'});
+      if(sub){pdf.setFontSize(7);pdf.setFont('helvetica','normal');pdf.setTextColor(...MD);pdf.text(sub,cx,y+9,{align:'center'});}
+    });
+
+  pdf.setFontSize(7); pdf.setFont('helvetica','normal'); pdf.setTextColor(...LT);
+  pdf.text('Generated by Urbanmud Manufacturing Ops', W/2, H-8, { align:'center' });
+  return pdf;
 }
 
 export default function Materials() {
   const app = useApp();
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(freshForm);
-  const [activeTab, setActiveTab] = useState('stock');
+  const [showModal, setShowModal]     = useState(false);
+  const [form, setForm]               = useState(freshForm);
+  const [activeTab, setActiveTab]     = useState('stock');
+  const [capturing, setCapturing]     = useState(false);
+  const [viewingBill, setViewingBill] = useState(null); // base64 image to preview
+  const fileRef = useRef(null);
 
   function set(k, v) {
     setForm(f => {
@@ -48,8 +180,37 @@ export default function Materials() {
     });
   }
 
+  async function handleCapture() {
+    setCapturing(true);
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      const photo = await Camera.getPhoto({ resultType: CameraResultType.Base64, source: CameraSource.Prompt, quality: 65, width: 1200 });
+      set('billImage', photo.base64String); set('billMode', 'uploaded');
+    } catch {
+      fileRef.current?.click();
+    } finally { setCapturing(false); }
+  }
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCapturing(true);
+    try {
+      const b64 = await compressImage(file);
+      set('billImage', b64); set('billMode', 'uploaded');
+    } catch (err) { alert('Could not process image: ' + err.message); }
+    finally { setCapturing(false); e.target.value = ''; }
+  }
+
+  function downloadURD(purchase) {
+    const mat = app.materialTypes.find(m => m.id === purchase.materialTypeId);
+    const pdf = buildURDPDF(purchase, mat?.name, mat?.unit, app.companyInfo || {});
+    pdf.save(`${purchase.billNumber || 'URD'}.pdf`);
+  }
+
   function save() {
     if (!form.materialTypeId || !form.quantity) return alert('Material type and quantity are required.');
+    if (!form.billMode) return alert('Bill is mandatory. Please upload a bill photo or select \"No Bill (URD)\".');
     app.addItem('materialPurchases', form);
     setForm({ ...freshForm(), date: form.date });
     setShowModal(false);
@@ -76,7 +237,7 @@ export default function Materials() {
         subtitle="Stock & purchase tracking"
         action={
           <button
-            onClick={() => { setForm(emptyForm); setShowModal(true); }}
+            onClick={() => { setForm(freshForm()); setShowModal(true); }}
             className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
           >
             <Plus size={20} />
@@ -195,13 +356,34 @@ export default function Materials() {
                           )}
                         </div>
                       </div>
-                      <div className="flex justify-end mt-2">
-                        <button
-                          onClick={() => { if (confirm('Delete this purchase?')) app.deleteItem('materialPurchases', p.id); }}
-                          className="text-red-400 hover:text-red-600 p-1"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
+                        <div className="flex items-center gap-1.5">
+                          {p.billMode === 'uploaded' ? (
+                            <span className="text-[9px] bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                              <CheckCircle2 size={9}/> Bill
+                            </span>
+                          ) : p.billMode === 'urd' ? (
+                            <span className="text-[9px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                              <FilePlus2 size={9}/> URD
+                            </span>
+                          ) : (
+                            <span className="text-[9px] bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                              <AlertTriangle size={9}/> No Bill
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {p.billMode === 'uploaded' && (
+                            <button onClick={() => setViewingBill(p.billImage)}
+                              className="text-blue-500 p-1" title="View Bill"><Eye size={15}/></button>
+                          )}
+                          {p.billMode === 'urd' && (
+                            <button onClick={() => downloadURD(p)}
+                              className="text-amber-600 p-1" title="Download URD"><Download size={15}/></button>
+                          )}
+                          <button onClick={() => { if (confirm('Delete this purchase?')) app.deleteItem('materialPurchases', p.id); }}
+                            className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -265,8 +447,61 @@ export default function Materials() {
             <textarea className={inputCls} rows={2} placeholder="Optional notes..." value={form.notes}
               onChange={e => set('notes', e.target.value)} />
           </Field>
+
+          {/* Bill section */}
+          <div className="border-2 border-dashed border-gray-200 rounded-xl p-3 mt-1">
+            <p className="text-xs font-bold text-gray-500 mb-2">Purchase Bill <span className="text-red-500">* (mandatory)</span></p>
+            {!form.billMode ? (
+              <div className="flex flex-col gap-2">
+                <button type="button" onClick={handleCapture} disabled={capturing}
+                  className="w-full py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60">
+                  <CamIcon size={16}/> {capturing ? 'Processing…' : 'Upload / Capture Bill Photo'}
+                </button>
+                <button type="button" onClick={() => set('billMode', 'urd')}
+                  className="w-full py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                  <FilePlus2 size={16}/> No Original Bill — Generate URD Self Invoice
+                </button>
+              </div>
+            ) : form.billMode === 'uploaded' ? (
+              <div className="relative">
+                <img src={`data:image/jpeg;base64,${form.billImage}`} alt="Bill" className="w-full rounded-xl border border-gray-200" />
+                <button type="button" onClick={() => setForm(f => ({...f, billMode:'', billImage:''}))}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow">
+                  <X size={13}/>
+                </button>
+                <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1"><CheckCircle2 size={12}/> Bill photo captured</p>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5"><AlertTriangle size={14}/> URD — No Original Bill</p>
+                  <button type="button" onClick={() => setForm(f => ({...f, billMode:''}))} className="text-gray-400"><X size={14}/></button>
+                </div>
+                <p className="text-xs text-amber-600 mb-2">A GST-compliant self-invoice (URD) will be generated & downloadable.</p>
+                <Field label="Supplier Address (optional, for URD bill)">
+                  <textarea className={inputCls} rows={2} placeholder="Supplier full address…"
+                    value={form.supplierAddress} onChange={e => set('supplierAddress', e.target.value)} />
+                </Field>
+              </div>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+          </div>
+
           <SaveBtn onClick={save} />
         </Modal>
+      )}
+
+      {/* Bill photo viewer */}
+      {viewingBill && (
+        <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <p className="text-white font-semibold text-sm">Bill Photo</p>
+            <button onClick={() => setViewingBill(null)} className="text-white p-1"><X size={22}/></button>
+          </div>
+          <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
+            <img src={`data:image/jpeg;base64,${viewingBill}`} alt="Bill" className="w-full max-w-xl rounded-xl shadow-xl" />
+          </div>
+        </div>
       )}
     </div>
   );
