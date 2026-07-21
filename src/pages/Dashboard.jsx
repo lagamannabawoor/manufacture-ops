@@ -219,7 +219,7 @@ export default function Dashboard({ navigate }) {
               { label: 'Purchase',   icon: Package,       color: 'bg-blue-600',   page: 'purchases',  sub: 'new_purchase'      },
               { label: 'Expense',    icon: Receipt,       color: 'bg-red-500',    page: 'purchases',  sub: 'tab_expenses_add'  },
               { label: 'Quote',      icon: FileText,      color: 'bg-purple-600', page: 'sales',      sub: 'new_quote'         },
-              { label: 'Labour Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases',  sub: 'tab_labour_add'    },
+              { label: 'Enquiry',    icon: MessageSquare, color: 'bg-indigo-600', page: 'sales',      sub: 'new_enquiry'       },
               { label: 'Sales Order',icon: ShoppingBag,   color: 'bg-rose-600',   page: 'sales',      sub: 'new_order'         },
             ].map(({ label, icon: Icon, color, page, sub }) => (
               <button key={label} onClick={() => navigate(page, sub)}
