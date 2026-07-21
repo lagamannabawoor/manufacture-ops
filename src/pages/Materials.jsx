@@ -369,7 +369,7 @@ export default function Materials() {
                   className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 cursor-pointer active:scale-95 transition-transform hover:border-amber-300">
                   <p className="text-xs font-semibold text-gray-600 truncate mb-1">{mat.name}</p>
                   <p className={`text-lg font-bold leading-tight ${stockVal > 0 ? 'text-gray-800' : 'text-red-500'}`}>{stockLabel}</p>
-                  <p className="text-[10px] text-gray-400 mb-1.5">{purchased} {mat.unit} bought</p>
+                  <p className="text-[10px] text-gray-400 mb-1.5">available</p>
                   {purchased > 0 && (
                     <div className="w-full bg-gray-100 rounded-full h-1">
                       <div className={`h-1 rounded-full transition-all ${stockVal > 0 ? 'bg-amber-500' : 'bg-red-400'}`}
@@ -399,6 +399,34 @@ export default function Materials() {
                 </select>
               </div>
             </div>
+
+            {/* Summary tile */}
+            {filteredPurchases.length > 0 && (() => {
+              const totalSpend = filteredPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+              const byMat = app.materialTypes.map(m => ({
+                name: m.name, unit: m.unit,
+                qty: filteredPurchases.filter(p => p.materialTypeId === m.id).reduce((s, p) => s + Number(p.quantity || 0), 0),
+                spend: filteredPurchases.filter(p => p.materialTypeId === m.id).reduce((s, p) => s + Number(p.totalAmount || 0), 0),
+              })).filter(m => m.qty > 0);
+              return (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-amber-800">Period Summary</p>
+                    <p className="text-sm font-bold text-red-600">₹{new Intl.NumberFormat('en-IN').format(totalSpend)}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {byMat.map(m => (
+                      <div key={m.name} className="bg-white rounded-lg px-2.5 py-1.5">
+                        <p className="text-[10px] text-gray-500 truncate">{m.name}</p>
+                        <p className="text-xs font-bold text-gray-800">{new Intl.NumberFormat('en-IN').format(m.qty)} {m.unit}</p>
+                        <p className="text-[10px] text-gray-400">₹{new Intl.NumberFormat('en-IN').format(m.spend)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {filteredPurchases.length === 0 ? (
               <div className="bg-white rounded-xl p-10 text-center shadow-sm border border-gray-100">
                 <Package size={40} className="text-gray-200 mx-auto mb-3" />
