@@ -325,8 +325,9 @@ export default function Materials() {
               .reduce((s, mu) => s + Number(mu.kgUsed || 0), 0);
 
             let stockLabel, stockVal, pct = 0;
-            if (unit === 'trucks' && kgPerUnit > 0) {
-              const purchasedT = (purchased * kgPerUnit) / 1000;
+            if (unit === 'trucks') {
+              const effectiveKg = kgPerUnit > 0 ? kgPerUnit : 30000;
+              const purchasedT = (purchased * effectiveKg) / 1000;
               const consumedT = consumedKg / 1000;
               const availT = Math.max(0, purchasedT - consumedT);
               stockLabel = `${availT.toFixed(2)} T`;
@@ -340,11 +341,6 @@ export default function Materials() {
             } else if (unit === 'liters' || unit === 'litres') {
               const avail = Math.max(0, purchased - consumedQty);
               stockLabel = `${fmt(avail)} L`;
-              stockVal = avail;
-              pct = purchased > 0 ? Math.min(100, (avail / purchased) * 100) : 0;
-            } else if (unit === 'trucks') {
-              const avail = Math.max(0, purchased - consumedQty);
-              stockLabel = `${fmt(avail)} trucks`;
               stockVal = avail;
               pct = purchased > 0 ? Math.min(100, (avail / purchased) * 100) : 0;
             } else {
@@ -362,7 +358,9 @@ export default function Materials() {
                 <div key={mat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
                   <p className="text-xs font-semibold text-gray-600 truncate mb-1">{mat.name}</p>
                   <p className={`text-lg font-bold leading-tight ${stockVal > 0 ? 'text-gray-800' : 'text-red-500'}`}>{stockLabel}</p>
-                  <p className="text-[10px] text-gray-400 mb-1.5">available · {purchased} {mat.unit} bought</p>
+                  <p className="text-[10px] text-gray-400 mb-1.5">
+                    {purchased} {mat.unit} bought{(mat.unit||'').toLowerCase() === 'trucks' && !mat.weightKgPerUnit ? ' · @30T/truck' : ''}
+                  </p>
                   {purchased > 0 && (
                     <div className="w-full bg-gray-100 rounded-full h-1">
                       <div className={`h-1 rounded-full transition-all ${stockVal > 0 ? 'bg-amber-500' : 'bg-red-400'}`}
