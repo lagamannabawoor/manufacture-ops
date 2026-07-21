@@ -7,7 +7,7 @@ import { fmtDate, todayISO, monthRange } from '../utils/date';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
-const emptyForm = { date: todayISO(), productId: '', factoryId: '', quantity: '', cementBags: '', notes: '' };
+const emptyForm = { date: todayISO(), productId: '', factoryId: '', quantity: '', laborGroupId: '', notes: '' };
 
 export default function Production() {
   const app = useApp();
@@ -28,12 +28,20 @@ export default function Production() {
 
   function save() {
     if (!form.productId || !form.quantity) return alert('Product and quantity are required.');
+    const product = app.products.find(p => p.id === form.productId);
+    const qty = Number(form.quantity);
+    const materialsUsed = (product?.bom || []).map(b => ({
+      materialTypeId: b.materialTypeId,
+      kgUsed:  Number(((b.kgPerProductUnit  || 0) * qty).toFixed(4)),
+      qtyUsed: Number(((b.qtyPerProductUnit || 0) * qty).toFixed(6)),
+    })).filter(m => m.kgUsed > 0);
+    const labourAmountOwed = Number(((parseFloat(product?.labourCostPerUnit) || 0) * qty).toFixed(2));
+    const entry = { ...form, qty, materialsUsed, labourAmountOwed };
     if (isLabour) {
-      const prod = app.products.find(p => p.id === form.productId);
-      app.submitPendingProduction({ ...form, qty: form.quantity, unit: prod?.unit || 'units' });
+      app.submitPendingProduction({ ...entry, unit: product?.unit || 'units' });
       alert('Submitted for approval!');
     } else {
-      app.addItem('productionEntries', form);
+      app.addItem('productionEntries', entry);
     }
     setForm({ ...emptyForm, date: form.date });
     setShowModal(false);
@@ -50,7 +58,7 @@ export default function Production() {
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const totalUnits = filtered.reduce((s, e) => s + Number(e.quantity || 0), 0);
-  const totalCement = filtered.reduce((s, e) => s + Number(e.cementBags || 0), 0);
+  const totalLabourOwed = filtered.reduce((s, e) => s + Number(e.labourAmountOwed || 0), 0);
 
   const pendingMine = (app.pendingProduction || []).filter(p => p.submittedBy === app.currentUser?.id);
   const pendingAll = app.pendingProduction || [];
@@ -85,7 +93,7 @@ export default function Production() {
                   <span className="text-xs font-semibold text-amber-600">Pending Approval</span>
                 </div>
                 <p className="font-semibold text-gray-800">{product?.name || 'Unknown'}</p>
-                <p className="text-xs text-gray-400">{fmtDate(p.date)} · {p.quantity} units · {p.cementBags || 0} bags</p>
+                <p className="text-xs text-gray-400">{fmtDate(p.date)} · {p.quantity} units{p.laborGroupId ? ` · ${app.laborGroups.find(g => g.id === p.laborGroupId)?.name || ''}` : ''}</p>
                 {p.notes && <p className="text-xs text-gray-500 mt-1 italic">{p.notes}</p>}
               </div>
             );
@@ -116,8 +124,11 @@ export default function Production() {
               <Field label="Quantity (units)" required>
                 <input type="number" className={inputCls} placeholder="0" value={form.quantity} onChange={e => set('quantity', e.target.value)} min="0" />
               </Field>
-              <Field label="Cement Bags">
-                <input type="number" className={inputCls} placeholder="0" value={form.cementBags} onChange={e => set('cementBags', e.target.value)} min="0" />
+              <Field label="Labour Group">
+                <select className={selectCls} value={form.laborGroupId} onChange={e => set('laborGroupId', e.target.value)}>
+                  <option value="">Select group…</option>
+                  {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
               </Field>
             </div>
             <Field label="Notes">
@@ -162,7 +173,7 @@ export default function Production() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-700">{product?.name || 'Unknown'}</p>
-                        <p className="text-xs text-gray-400">{fmtDate(p.date)} · {fmt(p.quantity)} units · {p.cementBags || 0} bags cement</p>
+                        <p className="text-xs text-gray-400">{fmtDate(p.date)} · {fmt(p.quantity)} units{p.laborGroupId ? ` · ${app.laborGroups.find(g => g.id === p.laborGroupId)?.name || ''}` : ''}</p>
                         <p className="text-xs text-amber-600 mt-0.5">By: {p.submittedByName} · {factory?.name || ''}</p>
                         {p.notes && <p className="text-xs text-gray-500 italic mt-0.5">{p.notes}</p>}
                       </div>
@@ -203,17 +214,17 @@ export default function Production() {
           </div>
         </div>
 
-        {(totalUnits > 0 || totalCement > 0) && (
+        {totalUnits > 0 && (
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
               <p className="text-xs text-gray-500 mb-1">Total Units</p>
               <p className="text-xl font-bold text-blue-700">{fmt(totalUnits)}</p>
-              <p className="text-xs text-gray-400">pieces produced</p>
+              <p className="text-xs text-gray-400">produced</p>
             </div>
-            <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
-              <p className="text-xs text-gray-500 mb-1">Cement Used</p>
-              <p className="text-xl font-bold text-orange-600">{fmt(totalCement)}</p>
-              <p className="text-xs text-gray-400">bags consumed</p>
+            <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+              <p className="text-xs text-gray-500 mb-1">Labour Owed</p>
+              <p className="text-xl font-bold text-purple-600">₹{fmt(totalLabourOwed)}</p>
+              <p className="text-xs text-gray-400">this period</p>
             </div>
           </div>
         )}
@@ -247,11 +258,26 @@ export default function Production() {
                       <p className="font-semibold text-gray-800">{product?.name || 'Unknown'}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.date)}</p>
                       {entry.notes && <p className="text-xs text-gray-500 mt-1 italic">{entry.notes}</p>}
+                      {entry.materialsUsed?.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {entry.materialsUsed.map((mu, idx) => {
+                            const mat = app.materialTypes.find(m => m.id === mu.materialTypeId);
+                            return (
+                              <span key={idx} className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-100">
+                                {mat?.name}: {mu.qtyUsed.toFixed ? mu.qtyUsed.toFixed(3) : mu.qtyUsed} {mat?.unit}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {entry.laborGroupId && (
+                        <p className="text-xs text-purple-600 mt-0.5">Labour: {app.laborGroups.find(g => g.id === entry.laborGroupId)?.name || ''}</p>
+                      )}
                     </div>
                     <div className="text-right ml-3">
                       <p className="text-lg font-bold text-gray-800">{fmt(entry.quantity)}</p>
-                      <p className="text-xs text-gray-400">units</p>
-                      <p className="text-sm font-semibold text-orange-600 mt-1">{entry.cementBags} bags</p>
+                      <p className="text-xs text-gray-400">{app.products.find(p => p.id === entry.productId)?.unit || 'units'}</p>
+                      {entry.labourAmountOwed > 0 && <p className="text-xs font-semibold text-purple-600 mt-1">₹{fmt(entry.labourAmountOwed)}</p>}
                     </div>
                   </div>
                   {canWrite && (
@@ -299,11 +325,42 @@ export default function Production() {
               <input type="number" className={inputCls} placeholder="0" value={form.quantity}
                 onChange={e => set('quantity', e.target.value)} min="0" />
             </Field>
-            <Field label="Cement Bags">
-              <input type="number" className={inputCls} placeholder="0" value={form.cementBags}
-                onChange={e => set('cementBags', e.target.value)} min="0" />
+            <Field label="Labour Group">
+              <select className={selectCls} value={form.laborGroupId} onChange={e => set('laborGroupId', e.target.value)}>
+                <option value="">Select group…</option>
+                {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
             </Field>
           </div>
+          {form.productId && Number(form.quantity) > 0 && (() => {
+            const prod = app.products.find(p => p.id === form.productId);
+            const qty  = Number(form.quantity);
+            const bom  = prod?.bom || [];
+            if (!bom.length && !prod?.labourCostPerUnit) return null;
+            return (
+              <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+                <p className="text-xs font-bold text-amber-700 mb-2">Materials to be deducted:</p>
+                <div className="space-y-1">
+                  {bom.map((b, i) => {
+                    const mat = app.materialTypes.find(m => m.id === b.materialTypeId);
+                    const qtyUsed = (b.qtyPerProductUnit || 0) * qty;
+                    const kgUsed  = (b.kgPerProductUnit  || 0) * qty;
+                    return (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">{mat?.name || b.materialTypeId}</span>
+                        <span className="font-semibold text-amber-800">{qtyUsed.toFixed(3)} {mat?.unit} ({kgUsed.toFixed(2)}kg)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {prod?.labourCostPerUnit > 0 && (
+                  <p className="text-xs text-purple-700 font-semibold mt-2 pt-2 border-t border-amber-200">
+                    Labour owed: ₹{fmt((parseFloat(prod.labourCostPerUnit) * qty))}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           <Field label="Notes">
             <textarea className={inputCls} rows={2} placeholder="Optional notes..." value={form.notes}
               onChange={e => set('notes', e.target.value)} />

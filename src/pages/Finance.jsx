@@ -491,41 +491,68 @@ function LaborTab() {
     .filter(p => !filterPayType || p.paymentType === filterPayType)
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  const groupTotals = app.laborGroups.map(g => ({
-    ...g,
-    total: app.laborPayments.filter(p => p.laborGroupId === g.id).reduce((s, p) => s + Number(p.amount || 0), 0),
-    advance: app.laborPayments.filter(p => p.laborGroupId === g.id && p.paymentType === 'advance').reduce((s, p) => s + Number(p.amount || 0), 0),
-  }));
+  const groupBalance = app.laborGroups.map(g => {
+    const owed = app.productionEntries
+      .filter(e => e.laborGroupId === g.id)
+      .reduce((s, e) => s + Number(e.labourAmountOwed || 0), 0);
+    const paid = app.laborPayments
+      .filter(p => p.laborGroupId === g.id)
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+    const advance = app.laborPayments
+      .filter(p => p.laborGroupId === g.id && p.paymentType === 'advance')
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+    const balance = owed - paid;
+    const status = balance < -0.5 ? 'overpaid' : balance > 0.5 ? 'pending' : 'settled';
+    return { ...g, owed, paid, advance, balance, status };
+  });
 
   return (
     <div className="px-4 py-4">
       <div className="flex justify-between items-center mb-3">
-        <h2 className="text-sm font-semibold text-gray-700">Labor Group Summary</h2>
+        <h2 className="text-sm font-semibold text-gray-700">Labour Balance Sheet</h2>
         <button onClick={() => setShowModal(true)} className="flex items-center gap-1 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">
           <Plus size={14} /> Add Payment
         </button>
       </div>
 
       <div className="space-y-3 mb-5">
-        {groupTotals.map(g => (
-          <div key={g.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
-                  <Users size={18} className="text-purple-600" />
+        {groupBalance.map(g => {
+          const statusStyle = g.status === 'overpaid' ? 'bg-blue-100 text-blue-700'
+            : g.status === 'pending' ? 'bg-red-100 text-red-700'
+            : 'bg-green-100 text-green-700';
+          return (
+            <div key={g.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                    <Users size={18} className="text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">{g.name}</p>
+                    {g.advance > 0 && <p className="text-xs text-gray-400">Advance: ₹{fmt(g.advance)}</p>}
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-800">{g.name}</p>
-                  <p className="text-xs text-gray-400">Advance: ₹{fmt(g.advance)}</p>
-                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${statusStyle}`}>{g.status}</span>
               </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-gray-800">₹{fmt(g.total)}</p>
-                <p className="text-xs text-gray-400">total paid</p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-gray-50 rounded-lg py-2">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Owed</p>
+                  <p className="text-sm font-bold text-gray-800">₹{fmt(g.owed)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg py-2">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Paid</p>
+                  <p className="text-sm font-bold text-green-700">₹{fmt(g.paid)}</p>
+                </div>
+                <div className={`rounded-lg py-2 ${g.balance > 0.5 ? 'bg-red-50' : g.balance < -0.5 ? 'bg-blue-50' : 'bg-green-50'}`}>
+                  <p className="text-[10px] text-gray-400 mb-0.5">Balance</p>
+                  <p className={`text-sm font-bold ${g.balance > 0.5 ? 'text-red-600' : g.balance < -0.5 ? 'text-blue-600' : 'text-green-600'}`}>
+                    {g.balance > 0.5 ? '-' : g.balance < -0.5 ? '+' : ''}₹{fmt(Math.abs(g.balance))}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-3">

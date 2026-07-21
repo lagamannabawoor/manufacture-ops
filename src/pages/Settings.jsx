@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
 import CAExport from './CAExport';
-import { Plus, Trash2, Pencil, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Archive, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Archive, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2 } from 'lucide-react';
 import { DOC_MAP } from '../services/firestoreDb';
 
 export default function Settings() {
@@ -139,22 +139,27 @@ function SectionEditor({ sectionId, label, onClose }) {
       display: item => item.name,
     },
     products: {
-      fields: [
-        { key: 'name', label: 'Product Name', type: 'text', required: true },
-        { key: 'categoryId', label: 'Category', type: 'select', options: app.productCategories, required: true },
-        { key: 'unit', label: 'Unit', type: 'select', options: [{ id: 'pieces', name: 'Pieces' }, { id: 'sqft', name: 'Sq.ft' }, { id: 'kg', name: 'Kg' }], required: true },
-      ],
+      customModal: true,
       display: item => {
         const cat = app.productCategories.find(c => c.id === item.categoryId);
-        return `${item.name} (${cat?.name || ''})`;
+        const extras = [
+          item.weightKg ? `${item.weightKg}kg/unit` : null,
+          item.bom?.length ? `BOM:${item.bom.length}` : null,
+          item.labourCostPerUnit ? `₹${item.labourCostPerUnit}/unit labour` : null,
+        ].filter(Boolean);
+        return `${item.name} (${cat?.name || ''})${extras.length ? ' · ' + extras.join(' · ') : ''}`;
       },
     },
     materialTypes: {
       fields: [
         { key: 'name', label: 'Material Name', type: 'text', required: true },
         { key: 'unit', label: 'Unit', type: 'select', options: [{ id: 'bags', name: 'Bags' }, { id: 'trucks', name: 'Trucks' }, { id: 'kg', name: 'Kg' }, { id: 'liters', name: 'Liters' }, { id: 'tons', name: 'Tons' }], required: true },
+        { key: 'weightKgPerUnit', label: 'Weight per unit (kg) — e.g. 50 for cement bags, 30000 for 30-ton trucks', type: 'number', readonlyOnEdit: true },
       ],
-      display: item => `${item.name} (${item.unit})`,
+      display: item => {
+        const wt = item.weightKgPerUnit ? ` · ${item.weightKgPerUnit}kg/${item.unit?.replace(/s$/, '') || 'unit'}` : '';
+        return `${item.name} (${item.unit}${wt})`;
+      },
     },
     laborGroups: {
       fields: [
@@ -222,7 +227,7 @@ function SectionEditor({ sectionId, label, onClose }) {
           </div>
         )}
       </div>
-      {showAdd && (
+      {showAdd && !config.customModal && (
         <AddItemModal
           title={`Add ${label}`}
           fields={config.fields}
@@ -230,10 +235,23 @@ function SectionEditor({ sectionId, label, onClose }) {
           onSave={data => { app.addItem(sectionId, data); setShowAdd(false); }}
         />
       )}
-      {editingItem && (
+      {showAdd && config.customModal && (
+        <ProductModal
+          onClose={() => setShowAdd(false)}
+          onSave={data => { app.addItem(sectionId, data); setShowAdd(false); }}
+        />
+      )}
+      {editingItem && !config.customModal && (
         <AddItemModal
           title={`Edit ${label}`}
           fields={config.fields}
+          initialValues={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={data => { app.updateItem(sectionId, editingItem.id, data); setEditingItem(null); }}
+        />
+      )}
+      {editingItem && config.customModal && (
+        <ProductModal
           initialValues={editingItem}
           onClose={() => setEditingItem(null)}
           onSave={data => { app.updateItem(sectionId, editingItem.id, data); setEditingItem(null); }}
@@ -244,6 +262,7 @@ function SectionEditor({ sectionId, label, onClose }) {
 }
 
 function AddItemModal({ title, fields, initialValues, onClose, onSave }) {
+  const isEdit = !!initialValues;
   const [form, setForm] = useState(() => {
     const f = {};
     fields.forEach(field => { f[field.key] = initialValues?.[field.key] ?? field.default ?? ''; });
@@ -258,18 +277,164 @@ function AddItemModal({ title, fields, initialValues, onClose, onSave }) {
 
   return (
     <Modal title={title} onClose={onClose}>
-      {fields.map(field => (
-        <Field key={field.key} label={field.label} required={field.required}>
-          {field.type === 'select' ? (
-            <select className={selectCls} value={form[field.key]} onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}>
-              <option value="">Select...</option>
-              {field.options?.map(opt => <option key={opt.id} value={opt.id}>{opt.name}</option>)}
-            </select>
-          ) : (
-            <input type={field.type} className={inputCls} value={form[field.key]} onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))} />
-          )}
+      {fields.map(field => {
+        const isLocked = field.readonlyOnEdit && isEdit;
+        return (
+          <Field key={field.key} label={field.label} required={field.required && !isLocked}>
+            {field.type === 'select' ? (
+              <select className={`${selectCls} ${isLocked ? 'opacity-50' : ''}`} value={form[field.key]}
+                disabled={isLocked}
+                onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}>
+                <option value="">Select...</option>
+                {field.options?.map(opt => <option key={opt.id} value={opt.id}>{opt.name}</option>)}
+              </select>
+            ) : (
+              <div className="relative">
+                <input type={field.type || 'text'} className={`${inputCls} ${isLocked ? 'bg-gray-50 text-gray-400 pr-16' : ''}`}
+                  value={form[field.key]} readOnly={isLocked}
+                  onChange={e => !isLocked && setForm(f => ({ ...f, [field.key]: e.target.value }))} />
+                {isLocked && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">locked</span>}
+              </div>
+            )}
+          </Field>
+        );
+      })}
+      <SaveBtn onClick={save} />
+    </Modal>
+  );
+}
+
+function ProductModal({ initialValues, onClose, onSave }) {
+  const app = useApp();
+  const [form, setForm] = useState({
+    name: initialValues?.name || '',
+    categoryId: initialValues?.categoryId || '',
+    unit: initialValues?.unit || 'pieces',
+    weightKg: initialValues?.weightKg || '',
+    labourCostPerUnit: initialValues?.labourCostPerUnit || '',
+    bom: initialValues?.bom || [],
+  });
+  const sf = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  function setBomRow(i, key, val) {
+    setForm(f => { const b = [...f.bom]; b[i] = { ...b[i], [key]: val }; return { ...f, bom: b }; });
+  }
+  function addBomRow() { setForm(f => ({ ...f, bom: [...f.bom, { materialTypeId: '', percentOfWeight: '' }] })); }
+  function delBomRow(i) { setForm(f => ({ ...f, bom: f.bom.filter((_, idx) => idx !== i) })); }
+
+  function save() {
+    if (!form.name.trim()) return alert('Product name is required.');
+    if (!form.categoryId)  return alert('Category is required.');
+    const pWeight = parseFloat(form.weightKg) || 0;
+    const cleanBom = form.bom
+      .filter(r => r.materialTypeId && parseFloat(r.percentOfWeight || 0) > 0)
+      .map(r => {
+        const mat = app.materialTypes.find(m => m.id === r.materialTypeId);
+        const wpu = parseFloat(mat?.weightKgPerUnit) || 0;
+        const pct = parseFloat(r.percentOfWeight);
+        const kgPerProductUnit = pWeight > 0 ? (pct / 100) * pWeight : 0;
+        const qtyPerProductUnit = (wpu > 0 && kgPerProductUnit > 0) ? kgPerProductUnit / wpu : 0;
+        return { materialTypeId: r.materialTypeId, percentOfWeight: pct, kgPerProductUnit, qtyPerProductUnit };
+      });
+    onSave({ ...form, bom: cleanBom });
+  }
+
+  const pWeight = parseFloat(form.weightKg) || 0;
+  const totalPct = form.bom.reduce((s, r) => s + parseFloat(r.percentOfWeight || 0), 0);
+
+  return (
+    <Modal title={initialValues ? 'Edit Product' : 'Add Product'} onClose={onClose}>
+      <Field label="Product Name" required>
+        <input type="text" className={inputCls} placeholder='e.g. 4" Solid Block'
+          value={form.name} onChange={e => sf('name', e.target.value)} />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Category" required>
+          <select className={selectCls} value={form.categoryId} onChange={e => sf('categoryId', e.target.value)}>
+            <option value="">Select…</option>
+            {app.productCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
         </Field>
-      ))}
+        <Field label="Unit" required>
+          <select className={selectCls} value={form.unit} onChange={e => sf('unit', e.target.value)}>
+            {[['pieces','Pieces'],['sqft','Sq.ft'],['kg','Kg'],['tons','Tons']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Weight / unit (kg)">
+          <input type="number" className={inputCls} placeholder="e.g. 10.5" min="0" step="0.01"
+            value={form.weightKg} onChange={e => sf('weightKg', e.target.value)} />
+        </Field>
+        <Field label="Labour Cost / unit (₹)">
+          <input type="number" className={inputCls} placeholder="0.00" min="0"
+            value={form.labourCostPerUnit} onChange={e => sf('labourCostPerUnit', e.target.value)} />
+        </Field>
+      </div>
+
+      <div className="mt-1">
+        <div className="flex items-center justify-between mb-1.5">
+          <div>
+            <p className="text-xs font-bold text-gray-700">Bill of Materials</p>
+            <p className="text-[10px] text-gray-400">% of product weight per unit produced</p>
+          </div>
+          <button type="button" onClick={addBomRow}
+            className="flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2.5 py-1.5 rounded-lg border border-amber-200 font-semibold">
+            <Plus size={11} /> Add
+          </button>
+        </div>
+        {form.bom.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-3 bg-gray-50 rounded-lg">No materials added. Tap + to build the BOM.</p>
+        )}
+        {!pWeight && form.bom.length > 0 && (
+          <p className="text-[10px] text-amber-600 bg-amber-50 rounded-lg px-2 py-1 mb-2">⚠️ Set product weight above to auto-calculate quantities.</p>
+        )}
+        <div className="space-y-2">
+          {form.bom.map((row, i) => {
+            const mat = app.materialTypes.find(m => m.id === row.materialTypeId);
+            const wpu = parseFloat(mat?.weightKgPerUnit) || 0;
+            const pct = parseFloat(row.percentOfWeight || 0);
+            const kgPer  = (pWeight > 0 && pct > 0) ? (pct / 100) * pWeight : null;
+            const qtyPer = (kgPer !== null && wpu > 0) ? kgPer / wpu : null;
+            return (
+              <div key={i} className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2 py-1.5">
+                <select className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
+                  value={row.materialTypeId}
+                  onChange={e => setBomRow(i, 'materialTypeId', e.target.value)}>
+                  <option value="">Material…</option>
+                  {app.materialTypes.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
+                </select>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <input type="number" placeholder="%" min="0" max="100" step="any"
+                    className="w-14 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-center"
+                    value={row.percentOfWeight}
+                    onChange={e => setBomRow(i, 'percentOfWeight', e.target.value)} />
+                  <span className="text-xs text-gray-400">%</span>
+                </div>
+                {kgPer !== null ? (
+                  <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-1 rounded font-medium whitespace-nowrap">
+                    {kgPer.toFixed(2)}kg
+                    {qtyPer !== null && <> · {qtyPer < 0.01 ? qtyPer.toFixed(4) : qtyPer.toFixed(3)}{mat?.unit}</>}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-gray-300 w-12 text-center">—</span>
+                )}
+                <button type="button" onClick={() => delBomRow(i)} className="text-red-400 p-1 shrink-0"><X size={14} /></button>
+              </div>
+            );
+          })}
+        </div>
+        {form.bom.length > 0 && (
+          <div className={`flex items-center justify-between mt-2 px-1 text-xs font-semibold ${
+            Math.abs(totalPct - 100) < 0.5 ? 'text-green-600' : 'text-amber-600'
+          }`}>
+            <span>Total: {totalPct.toFixed(1)}%</span>
+            {Math.abs(totalPct - 100) < 0.5
+              ? <span>✓ Matches product weight</span>
+              : <span>⚠ Should total 100%</span>}
+          </div>
+        )}
+      </div>
       <SaveBtn onClick={save} />
     </Modal>
   );

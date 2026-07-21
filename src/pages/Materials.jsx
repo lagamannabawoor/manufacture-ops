@@ -24,6 +24,8 @@ function freshForm() {
     billMode: '',        // 'uploaded' | 'urd' | ''
     billImage: '',       // compressed base64 JPEG
     supplierAddress: '', // for URD bill
+    weightKgPerUnit: '', // kg per bag/truck/liter (auto-populated from materialType)
+    weightLocked: false, // true after auto-fill; user must tap edit to change
   };
 }
 
@@ -173,9 +175,15 @@ export default function Materials() {
     setForm(f => {
       const updated = { ...f, [k]: v };
       if (k === 'quantity' || k === 'ratePerUnit') {
-        const qty = parseFloat(k === 'quantity' ? v : f.quantity) || 0;
+        const qty  = parseFloat(k === 'quantity'    ? v : f.quantity)    || 0;
         const rate = parseFloat(k === 'ratePerUnit' ? v : f.ratePerUnit) || 0;
         if (qty > 0 && rate > 0) updated.totalAmount = String(qty * rate);
+      }
+      if (k === 'materialTypeId') {
+        const mat = app.materialTypes.find(m => m.id === v);
+        const wpu = parseFloat(mat?.weightKgPerUnit) || 0;
+        if (wpu > 0) { updated.weightKgPerUnit = String(wpu); updated.weightLocked = true; }
+        else { updated.weightKgPerUnit = ''; updated.weightLocked = false; }
       }
       return updated;
     });
@@ -251,12 +259,11 @@ export default function Materials() {
     const purchased = app.materialPurchases
       .filter(p => p.materialTypeId === materialTypeId)
       .reduce((s, p) => s + Number(p.quantity || 0), 0);
-
-    if (materialTypeId === 'm1') {
-      const used = app.productionEntries.reduce((s, e) => s + Number(e.cementBags || 0), 0);
-      return purchased - used;
-    }
-    return purchased;
+    const consumed = app.productionEntries
+      .flatMap(e => e.materialsUsed || [])
+      .filter(mu => mu.materialTypeId === materialTypeId)
+      .reduce((s, mu) => s + Number(mu.qtyUsed || 0), 0);
+    return purchased - consumed;
   }
 
   const filteredPurchases = [...app.materialPurchases]
@@ -298,13 +305,13 @@ export default function Materials() {
           <div className="space-y-3">
             {app.materialTypes.map(mat => {
               const stock = getStock(mat.id);
-              const isCement = mat.id === 'm1';
               const purchased = app.materialPurchases
                 .filter(p => p.materialTypeId === mat.id)
                 .reduce((s, p) => s + Number(p.quantity || 0), 0);
-              const used = isCement
-                ? app.productionEntries.reduce((s, e) => s + Number(e.cementBags || 0), 0)
-                : 0;
+              const consumed = app.productionEntries
+                .flatMap(e => e.materialsUsed || [])
+                .filter(mu => mu.materialTypeId === mat.id)
+                .reduce((s, mu) => s + Number(mu.qtyUsed || 0), 0);
               return (
                 <div key={mat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                   <div className="flex items-center justify-between">
@@ -324,32 +331,26 @@ export default function Materials() {
                       <p className="text-xs text-gray-400">{mat.unit} in stock</p>
                     </div>
                   </div>
-                  {(purchased > 0 || isCement) && (
-                    <div className="mt-3 pt-3 border-t border-gray-50 flex gap-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-gray-400">Purchased: </span>
-                        <span className="text-xs font-semibold text-green-700">{fmt(purchased)} {mat.unit}</span>
-                      </div>
-                      {isCement && used > 0 && (
+                  {purchased > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-50">
+                      <div className="flex gap-4 mb-2">
                         <div className="flex items-center gap-1.5">
-                          <TrendingDown size={12} className="text-red-400" />
-                          <span className="text-xs text-gray-400">Used: </span>
-                          <span className="text-xs font-semibold text-red-600">{fmt(used)} bags</span>
+                          <span className="text-xs text-gray-400">Purchased:</span>
+                          <span className="text-xs font-semibold text-green-700">{fmt(purchased)} {mat.unit}</span>
                         </div>
-                      )}
-                    </div>
-                  )}
-                  {isCement && (
-                    <div className="mt-2">
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div
-                          className="bg-amber-500 h-2 rounded-full transition-all"
-                          style={{ width: purchased > 0 ? `${Math.min(100, (stock / purchased) * 100)}%` : '0%' }}
-                        />
+                        {consumed > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <TrendingDown size={12} className="text-red-400" />
+                            <span className="text-xs text-gray-400">Used:</span>
+                            <span className="text-xs font-semibold text-red-600">{consumed.toFixed(3)} {mat.unit}</span>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {purchased > 0 ? `${Math.round((stock / purchased) * 100)}% remaining` : 'No purchases yet'}
-                      </p>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div className="bg-amber-500 h-1.5 rounded-full transition-all"
+                          style={{ width: `${Math.min(100, Math.max(0, (stock / purchased) * 100))}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">{Math.max(0, Math.round((stock / purchased) * 100))}% remaining</p>
                     </div>
                   )}
                 </div>
@@ -472,6 +473,21 @@ export default function Materials() {
                 <Field label="Total Amount (₹) — auto-calculated">
                   <input type="number" className={inputCls} placeholder="Auto-filled or enter manually" value={form.totalAmount}
                     onChange={e => set('totalAmount', e.target.value)} min="0" />
+                </Field>
+                <Field label="Weight per unit (kg) — mandatory for stock tracking">
+                  <div className="relative">
+                    <input type="number" min="0" step="any"
+                      className={`${inputCls} ${form.weightLocked ? 'bg-gray-50 text-gray-500 pr-20' : ''}`}
+                      placeholder="e.g. 50 for a cement bag"
+                      value={form.weightKgPerUnit}
+                      readOnly={form.weightLocked}
+                      onChange={e => !form.weightLocked && set('weightKgPerUnit', e.target.value)} />
+                    {form.weightLocked
+                      ? <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold"
+                          onClick={() => setForm(f => ({ ...f, weightLocked: false }))}>Edit</button>
+                      : form.weightKgPerUnit && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">kg/{unitLabel?.replace(/s$/, '') || 'unit'}</span>
+                    }
+                  </div>
                 </Field>
               </>
             );
