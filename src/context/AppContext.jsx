@@ -312,8 +312,13 @@ export function AppProvider({ children }) {
     markDirty('companyInfo');
   }
 
-  function resetData() {
-    setData(SEED);
+  function resetData(preserve = {}) {
+    const next = { ...SEED };
+    if (preserve.users)        next.users        = data.users;
+    if (preserve.reportEmails) next.reportEmails  = data.reportEmails;
+    if (preserve.companyInfo)  next.companyInfo   = data.companyInfo;
+    setData(next);
+    dirtyKeysRef.current = new Set(Object.keys(next));
   }
 
   async function restoreData(backup) {

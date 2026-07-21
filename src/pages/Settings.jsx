@@ -882,23 +882,73 @@ function ReportEmailsPanel({ onClose }) {
   );
 }
 
+const RETAIN_OPTIONS = [
+  { key: 'users',        label: 'User accounts & roles',        desc: 'All user logins, passwords and permissions' },
+  { key: 'reportEmails', label: 'Report email recipients',       desc: 'Daily report mailing list' },
+  { key: 'companyInfo',  label: 'Company info & address',        desc: 'Name, GSTIN, address, logo & signature' },
+];
+
 function ResetSection() {
   const app = useApp();
+  const [retain, setRetain] = useState({ users: true, reportEmails: true, companyInfo: true });
+  const [open, setOpen] = useState(false);
+
+  function toggle(key) { setRetain(r => ({ ...r, [key]: !r[key] })); }
+
+  function handleReset() {
+    const kept = RETAIN_OPTIONS.filter(o => retain[o.key]).map(o => o.label);
+    const keptMsg = kept.length ? `\n\nRetaining:\n• ${kept.join('\n• ')}` : '\n\nEverything will be reset to defaults.';
+    if (!confirm(`⚠️ Reset all operational data?\n\nProduction, purchases, sales, orders, invoices, labour, expenses and audit log will be permanently deleted.${keptMsg}\n\nThis cannot be undone.`)) return;
+    app.resetData(retain);
+    setOpen(false);
+  }
+
   return (
-    <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-      <div className="flex items-start gap-3">
-        <AlertTriangle size={18} className="text-red-500 mt-0.5 shrink-0" />
-        <div>
+    <div className="bg-red-50 border border-red-200 rounded-xl overflow-hidden">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-3 p-4 text-left">
+        <AlertTriangle size={18} className="text-red-500 shrink-0" />
+        <div className="flex-1">
           <p className="text-sm font-semibold text-red-700">Reset All Data</p>
-          <p className="text-xs text-red-500 mt-1">This will delete all operational data and restore default master settings.</p>
-          <button
-            onClick={() => { if (confirm('Are you sure? All data will be lost!')) app.resetData(); }}
-            className="mt-3 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg"
-          >
-            Reset Data
+          <p className="text-xs text-red-400 mt-0.5">Delete operational data and restore defaults</p>
+        </div>
+        <span className="text-red-300 text-xs font-semibold">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-3 border-t border-red-200">
+          <div className="pt-3">
+            <p className="text-xs font-semibold text-gray-600 mb-2">Choose what to <span className="text-green-600">retain</span> after reset:</p>
+            <div className="space-y-2">
+              {RETAIN_OPTIONS.map(({ key, label, desc }) => (
+                <label key={key} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                  retain[key] ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+                }`}>
+                  <input type="checkbox" checked={retain[key]} onChange={() => toggle(key)}
+                    className="mt-0.5 accent-green-600 w-4 h-4 shrink-0" />
+                  <div>
+                    <p className={`text-xs font-semibold ${retain[key] ? 'text-green-700' : 'text-gray-600'}`}>{label}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-red-100 rounded-xl p-3">
+            <p className="text-[10px] text-red-600 font-semibold mb-1">Will always be deleted:</p>
+            <p className="text-[10px] text-red-500 leading-relaxed">
+              Production entries · Material purchases · Labour payments · Expenses · Orders · Invoices · Quotes · Enquiries · Audit log · Order dispatches & payments
+            </p>
+          </div>
+
+          <button onClick={handleReset}
+            className="w-full py-3 bg-red-600 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+            <AlertTriangle size={15} />
+            Reset Operational Data
           </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
