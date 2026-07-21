@@ -202,13 +202,8 @@ export default function Production() {
             </div>
           );
 
-          const totalInStock = goods.reduce((s, p) => s + p.inStock, 0);
           return (
             <div className="space-y-2">
-              <div className="bg-blue-50 rounded-xl px-4 py-2.5 border border-blue-100 mb-1 flex items-center justify-between">
-                <p className="text-xs text-gray-500">Total Finished Goods in Stock</p>
-                <p className="text-lg font-bold text-blue-700">{fmt(totalInStock)} pcs</p>
-              </div>
               {goods.map(p => (
                 <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
                   <div className="flex items-start justify-between gap-2 mb-1.5">
