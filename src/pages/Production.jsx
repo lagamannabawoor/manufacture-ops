@@ -33,12 +33,19 @@ export default function Production({ initialAction, onActionConsumed }) {
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
+  function autoFill(base = emptyForm) {
+    const f = { ...base };
+    if (app.factories.length === 1)   f.factoryId    = app.factories[0].id;
+    if (app.laborGroups.length === 1) f.laborGroupId = app.laborGroups[0].id;
+    if (app.products.length === 1)    f.productId    = app.products[0].id;
+    return f;
+  }
+
   function save() {
     if (!form.productId)    return alert('Product is required.');
     if (!form.factoryId)    return alert('Factory is required.');
     if (!form.quantity)     return alert('Quantity is required.');
     if (!form.laborGroupId) return alert('Labour group is required.');
-    if (!form.notes?.trim())  return alert('Notes is required.');
     const product = app.products.find(p => p.id === form.productId);
     const qty = Number(form.quantity);
     const materialsUsed = (product?.bom || []).map(b => ({
@@ -54,7 +61,7 @@ export default function Production({ initialAction, onActionConsumed }) {
     } else {
       app.addItem('productionEntries', entry);
     }
-    setForm({ ...emptyForm, date: form.date });
+    setForm(autoFill({ ...emptyForm, date: form.date }));
     setShowModal(false);
   }
 
@@ -82,7 +89,7 @@ export default function Production({ initialAction, onActionConsumed }) {
           title="Production"
           subtitle={`My submissions — ${fmtDate(todayISO())}`}
           action={
-            <button onClick={() => { setForm({ ...emptyForm, date: todayISO() }); setShowModal(true); }}
+            <button onClick={() => { setForm(autoFill({ ...emptyForm, date: todayISO() })); setShowModal(true); }}
               className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5">
               <Plus size={16} />
               <span className="text-[9px] font-semibold leading-none">Production</span>
@@ -144,7 +151,7 @@ export default function Production({ initialAction, onActionConsumed }) {
                 </select>
               </Field>
             </div>
-            <Field label="Notes" required>
+            <Field label="Notes">
               <textarea className={inputCls} rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="e.g. shift details, batch info..." />
             </Field>
             <SaveBtn onClick={save} label="Submit for Approval" />
@@ -161,7 +168,7 @@ export default function Production({ initialAction, onActionConsumed }) {
         subtitle="Daily manufacturing records"
         action={
           (canWrite || canApprove) && (
-            <button onClick={() => { setForm(emptyForm); setShowModal(true); }}
+            <button onClick={() => { setForm(autoFill()); setShowModal(true); }}
               className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5">
               <Plus size={16} />
               <span className="text-[9px] font-semibold leading-none">Production</span>
@@ -453,7 +460,7 @@ export default function Production({ initialAction, onActionConsumed }) {
               </div>
             );
           })()}
-          <Field label="Notes" required>
+          <Field label="Notes">
             <textarea className={inputCls} rows={2} placeholder="e.g. shift details, batch info..." value={form.notes}
               onChange={e => set('notes', e.target.value)} />
           </Field>
