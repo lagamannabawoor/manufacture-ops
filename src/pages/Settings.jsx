@@ -208,8 +208,9 @@ function SectionEditor({ sectionId, label, onClose }) {
         title={label}
         onBack={onClose}
         action={
-          <button onClick={() => setShowAdd(true)} className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2">
-            <Plus size={20} />
+          <button onClick={() => setShowAdd(true)} className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5">
+            <Plus size={16} />
+            <span className="text-[9px] font-semibold leading-none">Add</span>
           </button>
         }
       />
@@ -768,7 +769,7 @@ function UserManagementPanel({ onClose }) {
   return (
     <div className="fixed inset-0 z-[150] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
       <Header title="User Management" onBack={onClose} action={
-        <button onClick={() => setShowAdd(true)} className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"><Plus size={20} /></button>
+        <button onClick={() => setShowAdd(true)} className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5"><Plus size={16} /><span className="text-[9px] font-semibold leading-none">Add</span></button>
       } />
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {users.map(u => (

@@ -310,9 +310,10 @@ export default function Materials({ initialAction, onActionConsumed }) {
         action={
           <button
             onClick={() => { setForm(freshForm()); setShowModal(true); }}
-            className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
+            className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5"
           >
-            <Plus size={20} />
+            <Plus size={16} />
+            <span className="text-[9px] font-semibold leading-none">Purchase</span>
           </button>
         }
       />

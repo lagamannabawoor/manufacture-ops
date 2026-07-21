@@ -83,8 +83,9 @@ export default function Production({ initialAction, onActionConsumed }) {
           subtitle={`My submissions — ${fmtDate(todayISO())}`}
           action={
             <button onClick={() => { setForm({ ...emptyForm, date: todayISO() }); setShowModal(true); }}
-              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2">
-              <Plus size={20} />
+              className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5">
+              <Plus size={16} />
+              <span className="text-[9px] font-semibold leading-none">Production</span>
             </button>
           }
         />
@@ -161,8 +162,9 @@ export default function Production({ initialAction, onActionConsumed }) {
         action={
           (canWrite || canApprove) && (
             <button onClick={() => { setForm(emptyForm); setShowModal(true); }}
-              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2">
-              <Plus size={20} />
+              className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5">
+              <Plus size={16} />
+              <span className="text-[9px] font-semibold leading-none">Production</span>
             </button>
           )
         }

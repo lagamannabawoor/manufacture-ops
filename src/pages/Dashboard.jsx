@@ -213,14 +213,13 @@ export default function Dashboard({ navigate }) {
         {/* ── QUICK ACTIONS ─────────────────────────────────────── */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2.5">Quick Actions</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'Production', icon: Hammer,        color: 'bg-amber-700',  page: 'production', sub: 'new_production'    },
               { label: 'Purchase',   icon: Package,       color: 'bg-blue-600',   page: 'purchases',  sub: 'new_purchase'      },
-              { label: 'Labour Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases',  sub: 'tab_labour_add'    },
               { label: 'Expense',    icon: Receipt,       color: 'bg-red-500',    page: 'purchases',  sub: 'tab_expenses_add'  },
               { label: 'Quote',      icon: FileText,      color: 'bg-purple-600', page: 'sales',      sub: 'new_quote'         },
-              { label: 'Enquiry',    icon: MessageSquare, color: 'bg-indigo-600', page: 'sales',      sub: 'new_enquiry'       },
+              { label: 'Labour Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases',  sub: 'tab_labour_add'    },
               { label: 'Sales Order',icon: ShoppingBag,   color: 'bg-rose-600',   page: 'sales',      sub: 'new_order'         },
             ].map(({ label, icon: Icon, color, page, sub }) => (
               <button key={label} onClick={() => navigate(page, sub)}

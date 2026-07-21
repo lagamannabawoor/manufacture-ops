@@ -181,12 +181,16 @@ export default function Sales({ initialAction, onActionConsumed }) {
     <div>
       <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : activeTab === 'orders' ? 'Sales Orders · Invoices' : 'Quotes'}
         action={canWrite && (
-          <div className="flex gap-1">
-            <button onClick={() => openCreate('quote')}
-              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2" title="New Quote">
-              <FileText size={18} />
-            </button>
-          </div>
+          <button onClick={() => {
+            if (activeTab === 'quotes') openCreate('quote');
+            else if (activeTab === 'orders') setTriggerOrderAdd(true);
+            else { setActiveTab('enquiries'); setPendingEnqAdd(true); }
+          }} className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5">
+            <Plus size={16} />
+            <span className="text-[9px] font-semibold leading-none">
+              {activeTab === 'quotes' ? 'Quote' : activeTab === 'orders' ? 'Order' : 'Enquiry'}
+            </span>
+          </button>
         )}
       />
 
