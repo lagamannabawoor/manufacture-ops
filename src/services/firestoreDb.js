@@ -10,7 +10,7 @@ export const DOC_MAP = {
   production: ['productionEntries','pendingProduction'],
   materials:  ['materialPurchases'],
   finance:    ['laborPayments','orders','orderPayments','orderDispatches','expenses'],
-  sales:      ['quotes','invoices'],
+  sales:      ['quotes','invoices','enquiries'],
   audit:      ['auditLog'],
 };
 

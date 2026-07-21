@@ -83,6 +83,7 @@ const SEED = {
   orderDispatches: [],
   expenses: [],
   pendingProduction: [],
+  enquiries: [],
   auditLog: [],
   reportEmails: ['lagamanna@gmail.com'],
   companyInfo: {
