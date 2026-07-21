@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
@@ -467,9 +467,13 @@ export default function Finance() {
 }
 
 /* ── LABOR ─────────────────────────────────────────────── */
-export function LaborTab() {
+export function LaborTab({ triggerAdd, onTriggerConsumed }) {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (triggerAdd) { setShowModal(true); onTriggerConsumed?.(); }
+  }, [triggerAdd]);
   const [form, setForm] = useState({ date: todayISO(), laborGroupId: '', amount: '', paymentType: 'regular', bankAccountId: '', notes: '' });
   const [viewing, setViewing] = useState(null);
   const [vBusy, setVBusy] = useState(false);
@@ -684,9 +688,13 @@ export function LaborTab() {
 }
 
 /* ── ORDERS ─────────────────────────────────────────────── */
-export function OrdersTab({ onCreateInvoice }) {
+export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
   const app = useApp();
   const [showOrderModal, setShowOrderModal] = useState(false);
+
+  useEffect(() => {
+    if (triggerAdd) { setShowOrderModal(true); onTriggerConsumed?.(); }
+  }, [triggerAdd]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState(() => ({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' }));
@@ -1194,9 +1202,13 @@ export function OrdersTab({ onCreateInvoice }) {
 }
 
 /* ── EXPENSES ─────────────────────────────────────────────── */
-export function ExpensesTab() {
+export function ExpensesTab({ triggerAdd, onTriggerConsumed }) {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (triggerAdd) { setShowModal(true); onTriggerConsumed?.(); }
+  }, [triggerAdd]);
   const [capturing, setCapturing]     = useState(false);
   const [viewing, setViewing]         = useState(null);
   const [vBusy, setVBusy]             = useState(false);

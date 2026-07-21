@@ -130,6 +130,7 @@ export default function Sales({ initialAction, onActionConsumed }) {
   const app = useApp();
   const canWrite = (app.currentUser?.role === 'admin' || app.currentUser?.role === 'accountant');
   const [activeTab, setActiveTab] = useState('enquiries');
+  const [triggerOrderAdd, setTriggerOrderAdd] = useState(false);
   const [pendingEnqAdd, setPendingEnqAdd] = useState(false);
   const [modalType, setModalType] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -160,6 +161,7 @@ export default function Sales({ initialAction, onActionConsumed }) {
     if (initialAction === 'new_enquiry') { setActiveTab('enquiries'); setPendingEnqAdd(true); onActionConsumed?.(); }
     if (initialAction === 'tab_quotes')  { setActiveTab('quotes');   onActionConsumed?.(); }
     if (initialAction === 'tab_orders')  { setActiveTab('orders');   onActionConsumed?.(); }
+    if (initialAction === 'new_order')   { setActiveTab('orders');   setTriggerOrderAdd(true); onActionConsumed?.(); }
     if (initialAction === 'tab_enquiries'){ setActiveTab('enquiries'); onActionConsumed?.(); }
   }, [initialAction]);
   function openEdit(type, doc) { setEditing(doc); setPrefill(null); setModalType(type); }
@@ -201,7 +203,7 @@ export default function Sales({ initialAction, onActionConsumed }) {
       </div>
 
       {activeTab === 'enquiries' && <EnquiriesTab doAdd={pendingEnqAdd} onAddDone={() => setPendingEnqAdd(false)} />}
-      {activeTab === 'orders' && <OrdersTab onCreateInvoice={(order, product) => {
+      {activeTab === 'orders' && <OrdersTab triggerAdd={triggerOrderAdd} onTriggerConsumed={() => setTriggerOrderAdd(false)} onCreateInvoice={(order, product) => {
         openCreate('invoice', {
           ...freshInvoice(),
           customerName:    order.customerName  || '',

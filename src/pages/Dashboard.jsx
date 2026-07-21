@@ -215,13 +215,13 @@ export default function Dashboard({ navigate }) {
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2.5">Quick Actions</p>
           <div className="grid grid-cols-4 gap-2">
             {[
-              { label: 'Production', icon: Hammer,        color: 'bg-amber-700',  page: 'production'                      },
-              { label: 'Purchase',   icon: Package,       color: 'bg-blue-600',   page: 'purchases', sub: 'tab_stock'     },
-              { label: 'Labour Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases', sub: 'tab_labour'    },
-              { label: 'Expense',    icon: Receipt,       color: 'bg-red-500',    page: 'purchases', sub: 'tab_expenses'  },
-              { label: 'Quote',      icon: FileText,      color: 'bg-purple-600', page: 'sales',     sub: 'tab_quotes'    },
-              { label: 'Enquiry',    icon: MessageSquare, color: 'bg-indigo-600', page: 'sales',     sub: 'new_enquiry'   },
-              { label: 'Sales Order',icon: ShoppingBag,   color: 'bg-rose-600',   page: 'sales',     sub: 'tab_orders'    },
+              { label: 'Production', icon: Hammer,        color: 'bg-amber-700',  page: 'production', sub: 'new_production'    },
+              { label: 'Purchase',   icon: Package,       color: 'bg-blue-600',   page: 'purchases',  sub: 'new_purchase'      },
+              { label: 'Labour Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases',  sub: 'tab_labour_add'    },
+              { label: 'Expense',    icon: Receipt,       color: 'bg-red-500',    page: 'purchases',  sub: 'tab_expenses_add'  },
+              { label: 'Quote',      icon: FileText,      color: 'bg-purple-600', page: 'sales',      sub: 'new_quote'         },
+              { label: 'Enquiry',    icon: MessageSquare, color: 'bg-indigo-600', page: 'sales',      sub: 'new_enquiry'       },
+              { label: 'Sales Order',icon: ShoppingBag,   color: 'bg-rose-600',   page: 'sales',      sub: 'new_order'         },
             ].map(({ label, icon: Icon, color, page, sub }) => (
               <button key={label} onClick={() => navigate(page, sub)}
                 className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">

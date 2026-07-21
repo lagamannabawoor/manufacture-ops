@@ -163,12 +163,19 @@ export default function Materials({ initialAction, onActionConsumed }) {
   const app = useApp();
   const [showModal, setShowModal]     = useState(false);
   const [form, setForm]               = useState(freshForm);
-  const [activeTab, setActiveTab]     = useState('stock');
+  const [activeTab, setActiveTab]       = useState('stock');
+  const [triggerLabourAdd, setTriggerLabourAdd]   = useState(false);
+  const [triggerExpenseAdd, setTriggerExpenseAdd] = useState(false);
 
   useEffect(() => {
     if (!initialAction) return;
-    const map = { tab_stock: 'stock', tab_purchases: 'purchases', tab_labour: 'labour', tab_expenses: 'expenses' };
-    if (map[initialAction]) { setActiveTab(map[initialAction]); onActionConsumed?.(); }
+    if (initialAction === 'new_purchase')      { setActiveTab('purchases'); setShowModal(true);           onActionConsumed?.(); }
+    else if (initialAction === 'tab_labour_add')  { setActiveTab('labour');   setTriggerLabourAdd(true);   onActionConsumed?.(); }
+    else if (initialAction === 'tab_expenses_add'){ setActiveTab('expenses');  setTriggerExpenseAdd(true);  onActionConsumed?.(); }
+    else {
+      const map = { tab_stock: 'stock', tab_purchases: 'purchases', tab_labour: 'labour', tab_expenses: 'expenses' };
+      if (map[initialAction]) { setActiveTab(map[initialAction]); onActionConsumed?.(); }
+    }
   }, [initialAction]);
   const [capturing, setCapturing]     = useState(false);
   const [viewingPurchase, setViewingPurchase] = useState(null);
@@ -506,8 +513,8 @@ export default function Materials({ initialAction, onActionConsumed }) {
           </div>
         )}
 
-        {activeTab === 'labour' && <LaborTab />}
-        {activeTab === 'expenses' && <ExpensesTab />}
+        {activeTab === 'labour' && <LaborTab triggerAdd={triggerLabourAdd} onTriggerConsumed={() => setTriggerLabourAdd(false)} />}
+        {activeTab === 'expenses' && <ExpensesTab triggerAdd={triggerExpenseAdd} onTriggerConsumed={() => setTriggerExpenseAdd(false)} />}
       </div>
 
       {showModal && (

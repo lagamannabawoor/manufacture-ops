@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
@@ -9,7 +9,7 @@ function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 
 const emptyForm = { date: todayISO(), productId: '', factoryId: '', quantity: '', laborGroupId: '', notes: '' };
 
-export default function Production() {
+export default function Production({ initialAction, onActionConsumed }) {
   const app = useApp();
   const role = app.currentUser?.role;
   const perms = ROLES[role] || {};
@@ -19,6 +19,10 @@ export default function Production() {
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    if (initialAction === 'new_production' && canWrite) { setShowModal(true); onActionConsumed?.(); }
+  }, [initialAction]);
   const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
   const [filterCat, setFilterCat]       = useState('');
