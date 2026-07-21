@@ -174,7 +174,7 @@ export default function Sales({ initialAction, onActionConsumed }) {
 
   return (
     <div>
-      <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : activeTab === 'orders' ? 'Orders · Invoices' : 'Quotes'}
+      <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : activeTab === 'orders' ? 'Sales Orders · Invoices' : 'Quotes'}
         action={canWrite && (
           <div className="flex gap-1">
             {activeTab === 'orders' && (
@@ -195,7 +195,7 @@ export default function Sales({ initialAction, onActionConsumed }) {
       <div className="flex px-4 pt-4 gap-1.5">
         {[{ id: 'enquiries', label: `Enquiries (${(app.enquiries||[]).length})` },
           { id: 'quotes',    label: `Quotes (${quotes.length})` },
-          { id: 'orders',    label: `Sales (${(app.orders||[]).length})` }].map(t => (
+          { id: 'orders',    label: `Sales Order (${(app.orders||[]).length})` }].map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${activeTab === t.id ? 'bg-amber-700 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200'}`}>
             {t.label}
@@ -204,7 +204,22 @@ export default function Sales({ initialAction, onActionConsumed }) {
       </div>
 
       {activeTab === 'enquiries' && <EnquiriesTab doAdd={pendingEnqAdd} onAddDone={() => setPendingEnqAdd(false)} />}
-      {activeTab === 'orders' && <OrdersTab />}
+      {activeTab === 'orders' && <OrdersTab onCreateInvoice={(order, product) => {
+        openCreate('invoice', {
+          ...freshInvoice(),
+          customerName:    order.customerName  || '',
+          customerPhone:   order.customerPhone || '',
+          items: [{
+            _key:        Date.now() + Math.random(),
+            description: product?.name || '',
+            productId:   order.productId || '',
+            hsnCode:     '6810',
+            quantity:    String(order.quantity  || ''),
+            unit:        product?.unit || 'pieces',
+            unitPrice:   String(order.unitPrice || ''),
+          }],
+        });
+      }} />}
 
       {/* Tax Invoices section — shown under Sales/Orders tab */}
       {activeTab === 'orders' && (

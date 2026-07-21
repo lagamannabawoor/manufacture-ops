@@ -684,7 +684,7 @@ export function LaborTab() {
 }
 
 /* ── ORDERS ─────────────────────────────────────────────── */
-export function OrdersTab() {
+export function OrdersTab({ onCreateInvoice }) {
   const app = useApp();
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
@@ -864,7 +864,7 @@ export function OrdersTab() {
                 )}
 
                 {/* Action buttons */}
-                <div className="flex gap-2 mb-2">
+                <div className="flex gap-2 mb-2 flex-wrap">
                   <button
                     onClick={() => { setDispatchFor(order); setDForm({ date: todayISO(), quantity: '', notes: '' }); setShowDispatchModal(true); }}
                     className="flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-200"
@@ -877,6 +877,14 @@ export function OrdersTab() {
                   >
                     <ArrowDownCircle size={12} /> Add Payment
                   </button>
+                  {onCreateInvoice && (
+                    <button
+                      onClick={() => onCreateInvoice(order, product)}
+                      className="flex items-center gap-1 bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-teal-200"
+                    >
+                      <FileText size={12} /> Invoice
+                    </button>
+                  )}
                   <button onClick={() => { if (confirm('Delete order?')) app.deleteItem('orders', order.id); }} className="ml-auto text-gray-300 hover:text-red-400 p-1">
                     <Trash2 size={15} />
                   </button>
