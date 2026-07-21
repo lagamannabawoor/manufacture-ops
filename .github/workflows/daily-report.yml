@@ -2,11 +2,7 @@ name: Urbanmud Business Report
 
 on:
   schedule:
-    - cron: '30 18 * * *'       # Daily   — 12:00 AM IST every day
-    - cron: '0 19 * * 0'        # Weekly  — 12:30 AM IST every Monday (covers prev week)
-    - cron: '0 20 1 * *'        # Monthly — 1:30 AM IST on 1st of every month
-    - cron: '0 21 1 1,4,7,10 *' # Quarterly — 2:30 AM IST on 1st of each quarter
-    - cron: '0 22 1 4 *'        # Yearly  — 3:30 AM IST on Apr 1 (Indian FY start)
+    - cron: '30 18 * * *'   # Daily — 12:00 AM IST every day
   workflow_dispatch:
     inputs:
       from_date:

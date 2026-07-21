@@ -387,7 +387,7 @@ function buildReportPDF(periodType, rangeLabel, {
     doc.y=gsy+54;
     table(
       ['Invoice No','Date','Customer','Status','Taxable','CGST','SGST','Total','Paid','Balance'],
-      [60,50,100,45,55,50,50,60,55,50],
+      [55,45,90,40,50,45,45,55,50,40],  // sum=515
       invInRange.map(inv=>{
         const bal=Math.max(0,inv.total-num(inv.paidAmount));
         return [inv.invoiceNumber||'—',fd(inv.date),inv.customerName||'—',inv.status||'draft',
@@ -419,7 +419,7 @@ function buildReportPDF(periodType, rangeLabel, {
     });
     table(
       ['Customer','Product','Total','Dispatched','Pending Qty','Total Amt','Received','Pending Amt'],
-      [100,100,50,60,65,65,65,60],
+      [90,90,45,55,58,58,58,61],  // sum=515
       ordersWithStatus.map(o=>[o.customerName||'—',pName(o.productId),num(o.quantity)+' pcs',
         (num(o.quantity)-o.pendingQty)+' pcs',o.pendingQty>0?o.pendingQty+' pcs':'—',
         rp(o.totalAmount),rp(num(o.totalAmount)-o.pendingAmt),o.pendingAmt>0?rp(o.pendingAmt):'Settled']),
