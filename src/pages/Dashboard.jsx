@@ -54,13 +54,14 @@ export default function Dashboard({ navigate }) {
     const rcvd = app.orderPayments.filter(p => p.orderId === o.id && p.direction === 'received').reduce((a, p) => a + Number(p.amount || 0), 0);
     return !(dispatched >= Number(o.quantity || 0) && rcvd >= Number(o.totalAmount || 0));
   }).length;
+  const lowStockThreshold = Number(app.companyInfo?.lowStockThresholdPct ?? 20);
   const lowStockMats = app.materialTypes.filter(mat => {
     const purchased = app.materialPurchases.filter(p => p.materialTypeId === mat.id).reduce((s, p) => s + Number(p.quantity || 0), 0);
     if (purchased === 0) return false;
     const consumedKg = app.productionEntries.flatMap(e => e.materialsUsed || []).filter(mu => mu.materialTypeId === mat.id).reduce((s, mu) => s + Number(mu.kgUsed || 0), 0);
     const kgPU = Number(mat.weightKgPerUnit || (mat.unit?.toLowerCase() === 'trucks' ? 30000 : 1));
     const pct = ((purchased * kgPU - consumedKg) / (purchased * kgPU)) * 100;
-    return pct < 20;
+    return pct < lowStockThreshold;
   });
   const totalAlerts = pendingApprovals + overdueOrders + lowStockMats.length;
 
@@ -214,14 +215,13 @@ export default function Dashboard({ navigate }) {
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2.5">Quick Actions</p>
           <div className="grid grid-cols-4 gap-2">
             {[
-              { label: 'Production', icon: Hammer,       color: 'bg-amber-700',  page: 'production' },
-              { label: 'Material',   icon: Package,      color: 'bg-blue-600',   page: 'purchases'  },
-              { label: 'Payment',    icon: TrendingUp,   color: 'bg-green-600',  page: 'sales'      },
-              { label: 'Expense',    icon: Receipt,      color: 'bg-red-500',    page: 'purchases'  },
-              { label: 'Quote',      icon: FileText,     color: 'bg-purple-600', page: 'sales', sub: 'new_quote'    },
-              { label: 'Invoice',    icon: DollarSign,   color: 'bg-teal-600',   page: 'sales', sub: 'new_invoice'  },
-              { label: 'Enquiry',    icon: MessageSquare,color: 'bg-indigo-600', page: 'sales', sub: 'new_enquiry'  },
-              { label: 'Order',      icon: ShoppingBag,  color: 'bg-rose-600',   page: 'sales'      },
+              { label: 'Production', icon: Hammer,        color: 'bg-amber-700',  page: 'production'                      },
+              { label: 'Purchase',   icon: Package,       color: 'bg-blue-600',   page: 'purchases', sub: 'tab_stock'     },
+              { label: 'Labour Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases', sub: 'tab_labour'    },
+              { label: 'Expense',    icon: Receipt,       color: 'bg-red-500',    page: 'purchases', sub: 'tab_expenses'  },
+              { label: 'Quote',      icon: FileText,      color: 'bg-purple-600', page: 'sales',     sub: 'tab_quotes'    },
+              { label: 'Enquiry',    icon: MessageSquare, color: 'bg-indigo-600', page: 'sales',     sub: 'new_enquiry'   },
+              { label: 'Sales Order',icon: ShoppingBag,   color: 'bg-rose-600',   page: 'sales',     sub: 'tab_orders'    },
             ].map(({ label, icon: Icon, color, page, sub }) => (
               <button key={label} onClick={() => navigate(page, sub)}
                 className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">

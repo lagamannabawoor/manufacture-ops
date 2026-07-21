@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
@@ -159,11 +159,17 @@ function buildURDPDF(purchase, matName, matUnit, ci) {
   return pdf;
 }
 
-export default function Materials() {
+export default function Materials({ initialAction, onActionConsumed }) {
   const app = useApp();
   const [showModal, setShowModal]     = useState(false);
   const [form, setForm]               = useState(freshForm);
   const [activeTab, setActiveTab]     = useState('stock');
+
+  useEffect(() => {
+    if (!initialAction) return;
+    const map = { tab_stock: 'stock', tab_purchases: 'purchases', tab_labour: 'labour', tab_expenses: 'expenses' };
+    if (map[initialAction]) { setActiveTab(map[initialAction]); onActionConsumed?.(); }
+  }, [initialAction]);
   const [capturing, setCapturing]     = useState(false);
   const [viewingPurchase, setViewingPurchase] = useState(null);
   const [vBusy, setVBusy] = useState(false);

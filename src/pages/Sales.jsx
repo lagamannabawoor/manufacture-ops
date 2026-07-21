@@ -158,6 +158,9 @@ export default function Sales({ initialAction, onActionConsumed }) {
     if (initialAction === 'new_quote')   { openCreate('quote');   onActionConsumed?.(); }
     if (initialAction === 'new_invoice') { openCreate('invoice'); onActionConsumed?.(); }
     if (initialAction === 'new_enquiry') { setActiveTab('enquiries'); setPendingEnqAdd(true); onActionConsumed?.(); }
+    if (initialAction === 'tab_quotes')  { setActiveTab('quotes');   onActionConsumed?.(); }
+    if (initialAction === 'tab_orders')  { setActiveTab('orders');   onActionConsumed?.(); }
+    if (initialAction === 'tab_enquiries'){ setActiveTab('enquiries'); onActionConsumed?.(); }
   }, [initialAction]);
   function openEdit(type, doc) { setEditing(doc); setPrefill(null); setModalType(type); }
 

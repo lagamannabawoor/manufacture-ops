@@ -64,7 +64,7 @@ function AppShell() {
   const pages = {
     dashboard:  <Dashboard navigate={navigate} />,
     production: <Production navigate={navigate} />,
-    purchases:  <Materials navigate={navigate} />,
+    purchases:  <Materials navigate={navigate} initialAction={pendingAction} onActionConsumed={() => setPendingAction(null)} />,
     sales:      <Sales initialAction={pendingAction} onActionConsumed={() => setPendingAction(null)} />,
     reports:    <Reports navigate={navigate} />,
     settings:   <Settings navigate={navigate} />,

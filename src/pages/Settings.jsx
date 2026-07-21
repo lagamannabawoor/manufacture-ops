@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
 import CAExport from './CAExport';
-import { Plus, Trash2, Pencil, X, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Archive, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Archive, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2, SlidersHorizontal } from 'lucide-react';
 import { DOC_MAP } from '../services/firestoreDb';
 
 export default function Settings() {
@@ -15,7 +15,8 @@ export default function Settings() {
   const [showAudit, setShowAudit] = useState(false);
   const [showReportEmails, setShowReportEmails] = useState(false);
   const [showCompanyInfo, setShowCompanyInfo] = useState(false);
-  const [showBackup, setShowBackup]       = useState(false);
+  const [showThresholds, setShowThresholds]   = useState(false);
+  const [showBackup, setShowBackup]           = useState(false);
   const [showCAExport, setShowCAExport]   = useState(false);
   const sections = [
     { id: 'factories', label: 'Factories', icon: Building2, color: 'text-blue-500 bg-blue-50' },
@@ -47,6 +48,19 @@ export default function Settings() {
             </button>
           ))}
         </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+          <button onClick={() => setShowThresholds(true)} className="w-full flex items-center justify-between px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-orange-500 bg-orange-50"><SlidersHorizontal size={18} /></div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">Alert Thresholds</span>
+                <p className="text-[11px] text-gray-400 leading-tight">Low stock % · Needs Attention triggers</p>
+              </div>
+            </div>
+            <ChevronRight size={16} className="text-gray-300" />
+          </button>
+        </div>
+
         {isSuperAdmin && (
           <>
             <FirebaseSection />
@@ -110,7 +124,8 @@ export default function Settings() {
       {showUsers && <UserManagementPanel onClose={() => setShowUsers(false)} />}
       {showAudit && <AuditLog onBack={() => setShowAudit(false)} />}
       {showReportEmails && <ReportEmailsPanel onClose={() => setShowReportEmails(false)} />}
-      {showCompanyInfo && <CompanyInfoPanel onClose={() => setShowCompanyInfo(false)} />}
+      {showCompanyInfo  && <CompanyInfoPanel  onClose={() => setShowCompanyInfo(false)} />}
+      {showThresholds   && <ThresholdsPanel    onClose={() => setShowThresholds(false)} />}
       {showBackup     && <BackupRestorePanel onClose={() => setShowBackup(false)} />}
       {showCAExport  && <CAExport onClose={() => setShowCAExport(false)} />}
       {section && (
@@ -1290,6 +1305,65 @@ function BackupRestorePanel({ onClose }) {
           </div>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+/* ── ALERT THRESHOLDS ─────────────────────────────────────── */
+function ThresholdsPanel({ onClose }) {
+  const app = useApp();
+  const ci = app.companyInfo || {};
+  const [pct, setPct] = useState(String(ci.lowStockThresholdPct ?? 20));
+  const [saved, setSaved] = useState(false);
+
+  function save() {
+    const val = Math.min(100, Math.max(1, Number(pct) || 20));
+    app.setCompanyInfo({ lowStockThresholdPct: val });
+    setSaved(true);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-slate-100 flex flex-col max-w-[480px] mx-auto">
+      <Header title="Alert Thresholds" subtitle="Needs Attention triggers" onBack={onClose} />
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-1">Low Stock Threshold</p>
+            <p className="text-xs text-gray-500 mb-3">
+              A material is flagged in "Needs Attention" when its remaining stock falls below this
+              percentage of total purchased. Default is <strong>20%</strong>.
+            </p>
+            <input
+              type="range" min="1" max="100" step="1"
+              value={pct}
+              onChange={e => { setPct(e.target.value); setSaved(false); }}
+              className="w-full accent-orange-500 mb-1"
+            />
+            <div className="flex justify-between text-[10px] text-gray-400 mb-2">
+              <span>1%</span><span className="font-bold text-orange-600">{pct}%</span><span>100%</span>
+            </div>
+            <input
+              type="number" min="1" max="100"
+              className={inputCls}
+              value={pct}
+              onChange={e => { setPct(e.target.value); setSaved(false); }}
+              placeholder="e.g. 20"
+            />
+          </div>
+          <div className="bg-orange-50 rounded-xl p-3 border border-orange-100">
+            <p className="text-xs text-orange-700 font-semibold">Current setting: {pct || 20}%</p>
+            <p className="text-xs text-orange-600 mt-0.5">
+              Materials with less than {pct || 20}% stock remaining will appear in Dashboard alerts.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 py-3 bg-white border-t border-gray-100">
+        {saved && <p className="text-xs text-green-600 font-semibold text-center mb-2">✓ Threshold saved</p>}
+        <button onClick={save} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-sm">
+          Save Threshold
+        </button>
       </div>
     </div>
   );
