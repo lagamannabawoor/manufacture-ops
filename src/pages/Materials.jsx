@@ -311,14 +311,22 @@ export default function Materials() {
         {activeTab === 'stock' && (
           <div className="space-y-3">
             {app.materialTypes.map(mat => {
-              const stock = getStock(mat.id);
+              const kgPerUnit = Number(mat.weightKgPerUnit || 0);
               const purchased = app.materialPurchases
                 .filter(p => p.materialTypeId === mat.id)
                 .reduce((s, p) => s + Number(p.quantity || 0), 0);
-              const consumed = app.productionEntries
+              const consumedKg = app.productionEntries
                 .flatMap(e => e.materialsUsed || [])
                 .filter(mu => mu.materialTypeId === mat.id)
-                .reduce((s, mu) => s + Number(mu.qtyUsed || 0), 0);
+                .reduce((s, mu) => s + Number(mu.kgUsed || 0), 0);
+              const purchasedKg = kgPerUnit > 0 ? purchased * kgPerUnit : 0;
+              const stockKg = purchasedKg - consumedKg;
+              const useKg = kgPerUnit > 0;
+              const fmtKg = (kg) => kg >= 1000
+                ? `${(kg / 1000).toFixed(2)} T`
+                : `${kg.toFixed(1)} kg`;
+              const stockDisplay = useKg ? fmtKg(stockKg) : `${fmt(purchased)} ${mat.unit}`;
+              const pct = purchasedKg > 0 ? Math.min(100, Math.max(0, (stockKg / purchasedKg) * 100)) : 0;
               return (
                 <div key={mat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                   <div className="flex items-center justify-between">
@@ -328,36 +336,41 @@ export default function Materials() {
                       </div>
                       <div>
                         <p className="font-semibold text-gray-800">{mat.name}</p>
-                        <p className="text-xs text-gray-400">Unit: {mat.unit}</p>
+                        <p className="text-xs text-gray-400">{purchased} {mat.unit} purchased{kgPerUnit > 0 ? ` · ${kgPerUnit}kg/${mat.unit.replace(/s$/, '')}` : ''}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`text-xl font-bold ${stock > 0 ? 'text-gray-800' : 'text-red-600'}`}>
-                        {fmt(stock)}
+                      <p className={`text-xl font-bold ${(!useKg && purchased > 0) || (useKg && stockKg > 0) ? 'text-gray-800' : 'text-red-600'}`}>
+                        {stockDisplay}
                       </p>
-                      <p className="text-xs text-gray-400">{mat.unit} in stock</p>
+                      <p className="text-xs text-gray-400">in stock</p>
                     </div>
                   </div>
                   {purchased > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-50">
-                      <div className="flex gap-4 mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-gray-400">Purchased:</span>
-                          <span className="text-xs font-semibold text-green-700">{fmt(purchased)} {mat.unit}</span>
-                        </div>
-                        {consumed > 0 && (
+                      <div className="flex gap-4 mb-2 flex-wrap">
+                        {useKg && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-400">Purchased:</span>
+                            <span className="text-xs font-semibold text-green-700">{fmtKg(purchasedKg)}</span>
+                          </div>
+                        )}
+                        {consumedKg > 0 && (
                           <div className="flex items-center gap-1.5">
                             <TrendingDown size={12} className="text-red-400" />
                             <span className="text-xs text-gray-400">Used:</span>
-                            <span className="text-xs font-semibold text-red-600">{consumed.toFixed(3)} {mat.unit}</span>
+                            <span className="text-xs font-semibold text-red-600">{fmtKg(consumedKg)}</span>
                           </div>
                         )}
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5">
-                        <div className="bg-amber-500 h-1.5 rounded-full transition-all"
-                          style={{ width: `${Math.min(100, Math.max(0, (stock / purchased) * 100))}%` }} />
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">{Math.max(0, Math.round((stock / purchased) * 100))}% remaining</p>
+                      {useKg && (
+                        <>
+                          <div className="w-full bg-gray-100 rounded-full h-1.5">
+                            <div className="bg-amber-500 h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">{Math.round(pct)}% remaining</p>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

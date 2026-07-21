@@ -748,7 +748,7 @@ function OrdersTab() {
   const [consolidatedBusy, setConsolidatedBusy] = useState(false);
   const sorted = [...app.orders]
     .filter(o => {
-      const d = o.deliveryDate || new Date(parseInt(o.id)).toISOString().slice(0,10);
+      const d = o.deliveryDate || todayISO();
       return (!filterFrom || d >= filterFrom) && (!filterTo || d <= filterTo);
     })
     .filter(o => !filterStatus || computeOrder(o).effectiveStatus === filterStatus)
