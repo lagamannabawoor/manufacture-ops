@@ -31,6 +31,7 @@ export default function Production() {
     if (!form.factoryId)    return alert('Factory is required.');
     if (!form.quantity)     return alert('Quantity is required.');
     if (!form.laborGroupId) return alert('Labour group is required.');
+    if (!form.notes?.trim())  return alert('Notes is required.');
     const product = app.products.find(p => p.id === form.productId);
     const qty = Number(form.quantity);
     const materialsUsed = (product?.bom || []).map(b => ({
@@ -134,8 +135,8 @@ export default function Production() {
                 </select>
               </Field>
             </div>
-            <Field label="Notes">
-              <textarea className={inputCls} rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Optional notes..." />
+            <Field label="Notes" required>
+              <textarea className={inputCls} rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="e.g. shift details, batch info..." />
             </Field>
             <SaveBtn onClick={save} label="Submit for Approval" />
           </Modal>
@@ -261,13 +262,16 @@ export default function Production() {
                       <p className="font-semibold text-gray-800">{product?.name || 'Unknown'}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.date)}</p>
                       {entry.notes && <p className="text-xs text-gray-500 mt-1 italic">{entry.notes}</p>}
-                      {entry.materialsUsed?.length > 0 && (
+                      {entry.materialsUsed?.some(mu => mu.kgUsed > 0) && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
-                          {entry.materialsUsed.map((mu, idx) => {
+                          {entry.materialsUsed.filter(mu => mu.kgUsed > 0).map((mu, idx) => {
                             const mat = app.materialTypes.find(m => m.id === mu.materialTypeId);
+                            const kgDisp = mu.kgUsed >= 1000
+                              ? `${(mu.kgUsed / 1000).toFixed(3)} T`
+                              : `${mu.kgUsed.toFixed(2)} kg`;
                             return (
                               <span key={idx} className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-100">
-                                {mat?.name}: {mu.qtyUsed.toFixed ? mu.qtyUsed.toFixed(3) : mu.qtyUsed} {mat?.unit}
+                                {mat?.name}: {kgDisp}
                               </span>
                             );
                           })}
@@ -346,12 +350,14 @@ export default function Production() {
                 <div className="space-y-1">
                   {bom.map((b, i) => {
                     const mat = app.materialTypes.find(m => m.id === b.materialTypeId);
-                    const qtyUsed = (b.qtyPerProductUnit || 0) * qty;
-                    const kgUsed  = (b.kgPerProductUnit  || 0) * qty;
+                    const kgUsed = (b.kgPerProductUnit || 0) * qty;
+                    const kgDisp = kgUsed >= 1000
+                      ? `${(kgUsed / 1000).toFixed(3)} T`
+                      : `${kgUsed.toFixed(2)} kg`;
                     return (
                       <div key={i} className="flex items-center justify-between text-xs">
                         <span className="text-gray-600">{mat?.name || b.materialTypeId}</span>
-                        <span className="font-semibold text-amber-800">{qtyUsed.toFixed(3)} {mat?.unit} ({kgUsed.toFixed(2)}kg)</span>
+                        <span className="font-semibold text-amber-800">{kgDisp}</span>
                       </div>
                     );
                   })}
@@ -364,8 +370,8 @@ export default function Production() {
               </div>
             );
           })()}
-          <Field label="Notes">
-            <textarea className={inputCls} rows={2} placeholder="Optional notes..." value={form.notes}
+          <Field label="Notes" required>
+            <textarea className={inputCls} rows={2} placeholder="e.g. shift details, batch info..." value={form.notes}
               onChange={e => set('notes', e.target.value)} />
           </Field>
           <SaveBtn onClick={save} />

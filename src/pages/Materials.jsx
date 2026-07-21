@@ -255,6 +255,7 @@ export default function Materials() {
     if (!form.weightKgPerUnit) return alert('Weight per unit is required for stock tracking.');
     if (!form.supplier)        return alert('Supplier name is required.');
     if (!form.bankAccountId)   return alert('Payment account is required.');
+    if (!form.notes?.trim())   return alert('Notes is required.');
     if (!form.billMode) return alert('Bill is mandatory. Please upload a bill photo or select "No Bill (URD)".');
     app.addItem('materialPurchases', form);
     setForm({ ...freshForm(), date: form.date });
@@ -512,8 +513,8 @@ export default function Materials() {
               {app.bankAccounts.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </Field>
-          <Field label="Notes">
-            <textarea className={inputCls} rows={2} placeholder="Optional notes..." value={form.notes}
+          <Field label="Notes" required>
+            <textarea className={inputCls} rows={2} placeholder="e.g. supplier contact, vehicle no, remarks..." value={form.notes}
               onChange={e => set('notes', e.target.value)} />
           </Field>
 
