@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp, ROLES } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Factory, Filter, CheckCircle, XCircle, Clock, Send, Package, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, Factory, Filter, CheckCircle, XCircle, Clock, Send, Package } from 'lucide-react';
 import { fmtDate, todayISO, monthRange } from '../utils/date';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
@@ -66,17 +66,6 @@ export default function Production() {
 
   const pendingMine = (app.pendingProduction || []).filter(p => p.submittedBy === app.currentUser?.id);
   const pendingAll = app.pendingProduction || [];
-
-  function getStock(materialTypeId) {
-    const purchased = app.materialPurchases
-      .filter(p => p.materialTypeId === materialTypeId)
-      .reduce((s, p) => s + Number(p.quantity || 0), 0);
-    const consumed = app.productionEntries
-      .flatMap(e => e.materialsUsed || [])
-      .filter(mu => mu.materialTypeId === materialTypeId)
-      .reduce((s, mu) => s + Number(mu.qtyUsed || 0), 0);
-    return { purchased, consumed, stock: purchased - consumed };
-  }
 
   if (isLabour) {
     return (
@@ -183,42 +172,77 @@ export default function Production() {
 
       <div className="px-4 py-4">
         {/* ── STOCK TAB ── */}
-        {activeTab === 'stock' && (
-          <div className="space-y-2">
-            {app.materialTypes.length === 0 && (
-              <div className="bg-white rounded-xl p-8 text-center border border-gray-100">
-                <Package size={36} className="text-gray-200 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No material types configured</p>
+        {activeTab === 'stock' && (() => {
+          const goods = app.products.map(prod => {
+            const category = app.productCategories.find(c => c.id === prod.categoryId);
+            const produced = app.productionEntries
+              .filter(e => e.productId === prod.id)
+              .reduce((s, e) => s + Number(e.quantity || 0), 0);
+            const dispatched = app.orderDispatches
+              .filter(d => {
+                const order = app.orders.find(o => o.id === d.orderId);
+                return order?.productId === prod.id;
+              })
+              .reduce((s, d) => s + Number(d.quantity || 0), 0);
+            const pendingOrdered = app.orders
+              .filter(o => o.productId === prod.id)
+              .reduce((s, o) => s + Math.max(0, Number(o.quantity || 0) - (
+                app.orderDispatches.filter(d => d.orderId === o.id).reduce((ss, d) => ss + Number(d.quantity || 0), 0)
+              )), 0);
+            const inStock = Math.max(0, produced - dispatched);
+            const pct = produced > 0 ? Math.min(100, (inStock / produced) * 100) : 0;
+            return { ...prod, category, produced, dispatched, pendingOrdered, inStock, pct };
+          }).filter(p => p.produced > 0);
+
+          if (goods.length === 0) return (
+            <div className="bg-white rounded-xl p-10 text-center border border-gray-100">
+              <Package size={40} className="text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-500 font-medium">No production records yet</p>
+              <p className="text-xs text-gray-400 mt-1">Add production entries to see stock</p>
+            </div>
+          );
+
+          const totalInStock = goods.reduce((s, p) => s + p.inStock, 0);
+          return (
+            <div className="space-y-2">
+              <div className="bg-blue-50 rounded-xl px-4 py-2.5 border border-blue-100 mb-1 flex items-center justify-between">
+                <p className="text-xs text-gray-500">Total Finished Goods in Stock</p>
+                <p className="text-lg font-bold text-blue-700">{fmt(totalInStock)} pcs</p>
               </div>
-            )}
-            {app.materialTypes.map(mat => {
-              const { purchased, consumed, stock } = getStock(mat.id);
-              const pct = purchased > 0 ? Math.max(0, Math.min(100, (stock / purchased) * 100)) : 0;
-              return (
-                <div key={mat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="font-semibold text-gray-800 text-sm">{mat.name}</p>
-                    <p className={`text-base font-bold ${stock > 0 ? 'text-gray-800' : 'text-red-600'}`}>
-                      {fmt(stock)} <span className="text-xs font-normal text-gray-400">{mat.unit}</span>
-                    </p>
+              {goods.map(p => (
+                <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="flex-1 min-w-0">
+                      {p.category && <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium">{p.category.name}</span>}
+                      <p className="font-semibold text-gray-800 text-sm mt-0.5">{p.name}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-xl font-bold ${p.inStock > 0 ? 'text-green-700' : 'text-red-500'}`}>{fmt(p.inStock)}</p>
+                      <p className="text-[10px] text-gray-400">{p.unit} in stock</p>
+                    </div>
                   </div>
-                  {purchased > 0 && (
-                    <>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1">
-                        <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
-                      <div className="flex justify-between text-[10px] text-gray-400">
-                        <span>Purchased: {fmt(purchased)}</span>
-                        {consumed > 0 && <span className="flex items-center gap-0.5"><TrendingDown size={9} /> Used: {consumed.toFixed(3)}</span>}
-                        <span>{Math.round(pct)}% left</span>
-                      </div>
-                    </>
-                  )}
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1.5">
+                    <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${p.pct}%` }} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-center">
+                    <div>
+                      <p className="text-xs font-semibold text-blue-700">{fmt(p.produced)}</p>
+                      <p className="text-[10px] text-gray-400">Produced</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-amber-600">{fmt(p.dispatched)}</p>
+                      <p className="text-[10px] text-gray-400">Dispatched</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-red-500">{fmt(p.pendingOrdered)}</p>
+                      <p className="text-[10px] text-gray-400">Pending Orders</p>
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
 
         {/* ── RECORDS TAB ── */}
         {activeTab === 'records' && (
