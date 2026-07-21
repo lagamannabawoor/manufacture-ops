@@ -1,8 +1,12 @@
-name: Urbanmud Daily Report
+name: Urbanmud Business Report
 
 on:
   schedule:
-    - cron: '30 18 * * *'   # 12:00 AM IST = 18:30 UTC every day
+    - cron: '30 18 * * *'       # Daily   — 12:00 AM IST every day
+    - cron: '0 19 * * 0'        # Weekly  — 12:30 AM IST every Monday (covers prev week)
+    - cron: '0 20 1 * *'        # Monthly — 1:30 AM IST on 1st of every month
+    - cron: '0 21 1 1,4,7,10 *' # Quarterly — 2:30 AM IST on 1st of each quarter
+    - cron: '0 22 1 4 *'        # Yearly  — 3:30 AM IST on Apr 1 (Indian FY start)
   workflow_dispatch:
     inputs:
       from_date:
@@ -11,6 +15,10 @@ on:
         default: ''
       to_date:
         description: 'Report end date (YYYY-MM-DD). Leave blank for today.'
+        required: false
+        default: ''
+      period_type:
+        description: 'Period type override: daily|weekly|monthly|quarterly|yearly'
         required: false
         default: ''
 
@@ -30,13 +38,50 @@ jobs:
         run: npm install firebase-admin nodemailer xlsx pdfkit
         working-directory: scripts
 
-      - name: Send daily report
+      - name: Compute date range
+        id: dates
+        run: |
+          NOW_IST=$(TZ='Asia/Kolkata' date +%Y-%m-%d)
+          HOUR_UTC=$(date +%H)
+          MANUAL_FROM="${{ github.event.inputs.from_date }}"
+          MANUAL_TO="${{ github.event.inputs.to_date }}"
+          if [ -n "$MANUAL_FROM" ]; then
+            echo "from=$MANUAL_FROM" >> $GITHUB_OUTPUT
+            echo "to=${MANUAL_TO:-$MANUAL_FROM}" >> $GITHUB_OUTPUT
+          elif [ "$HOUR_UTC" = "22" ]; then
+            # Yearly — full previous FY (Apr 1 prev year → Mar 31 this year)
+            PREV_YEAR=$(TZ='Asia/Kolkata' date -d '-1 year' +%Y)
+            echo "from=${PREV_YEAR}-04-01" >> $GITHUB_OUTPUT
+            echo "to=$(TZ='Asia/Kolkata' date -d '-1 day' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          elif [ "$HOUR_UTC" = "21" ]; then
+            # Quarterly — previous quarter
+            MONTH=$(TZ='Asia/Kolkata' date -d '-1 day' +%m | sed 's/^0//')
+            YEAR=$(TZ='Asia/Kolkata' date -d '-1 day' +%Y)
+            QS=$(( (($MONTH-1)/3)*3+1 ))
+            QE=$(( $QS+2 ))
+            echo "from=${YEAR}-$(printf '%02d' $QS)-01" >> $GITHUB_OUTPUT
+            echo "to=$(TZ='Asia/Kolkata' date -d "$YEAR-$(printf '%02d' $QE)-01 +1 month -1 day" +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          elif [ "$HOUR_UTC" = "20" ]; then
+            # Monthly — previous full month
+            echo "from=$(TZ='Asia/Kolkata' date -d 'last month' +%Y-%m-01)" >> $GITHUB_OUTPUT
+            echo "to=$(TZ='Asia/Kolkata' date -d '-1 day' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          elif [ "$HOUR_UTC" = "19" ]; then
+            # Weekly — Mon to Sun of previous week
+            echo "from=$(TZ='Asia/Kolkata' date -d 'last monday -7 days' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+            echo "to=$(TZ='Asia/Kolkata' date -d 'last sunday' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          else
+            # Daily — today
+            echo "from=$NOW_IST" >> $GITHUB_OUTPUT
+            echo "to=$NOW_IST" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send report
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GMAIL_USER:               ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD:       ${{ secrets.GMAIL_APP_PASSWORD }}
           REPORT_TO:                lagamanna@gmail.com,${{ secrets.GMAIL_USER }}
-          REPORT_FROM_DATE:         ${{ github.event.inputs.from_date }}
-          REPORT_TO_DATE:           ${{ github.event.inputs.to_date }}
+          REPORT_FROM_DATE:         ${{ steps.dates.outputs.from }}
+          REPORT_TO_DATE:           ${{ steps.dates.outputs.to }}
         run: node daily-report.js
         working-directory: scripts
