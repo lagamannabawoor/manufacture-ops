@@ -304,14 +304,6 @@ export default function Production() {
               </div>
             </div>
 
-            {/* Total Units stat — single bar */}
-            {totalUnits > 0 && (
-              <div className="bg-blue-50 rounded-xl px-4 py-2.5 border border-blue-100 mb-3 flex items-center justify-between">
-                <p className="text-xs text-gray-500">Total Units Produced</p>
-                <p className="text-lg font-bold text-blue-700">{fmt(totalUnits)}</p>
-              </div>
-            )}
-
             {/* Entry list */}
             {filtered.length === 0 ? (
               <div className="bg-white rounded-xl p-10 text-center shadow-sm border border-gray-100">
