@@ -10,6 +10,15 @@ function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 function rp(n)  { return 'Rs.' + fmt(n); }
 function num(n) { return Number(n || 0); }
 
+function calcInvTotals(inv) {
+  const items = inv.items || [];
+  const sub   = items.reduce((s, i) => s + num(i.quantity) * num(i.unitPrice), 0);
+  const disc  = inv.discountType === 'pct' ? sub * (num(inv.discountValue) / 100) : num(inv.discountValue);
+  const taxable = sub - disc;
+  const taxAmt  = taxable * (num(inv.taxRate || 18) / 100);
+  return { total: taxable + taxAmt, taxAmt, taxable, halfTax: taxAmt / 2 };
+}
+
 function toCSV(headers, rows) {
   const esc = v => {
     const s = String(v == null ? '' : v);
@@ -225,13 +234,65 @@ function buildCAPDF(from, to, label, rows, totals, ci) {
   );
 
   // G. Production
-  sec('G.  PRODUCTION RECORDS', [59, 130, 246]);
+  sec('G.  PRODUCTION RECORDS');
   tbl(
     ['Date', 'Factory', 'Product', 'Qty (pcs)', 'Cement (bags)', 'Notes'],
     rows.prod,
     null,
     { 3: { halign: 'right' }, 4: { halign: 'right' } }
   );
+
+  // H. Tax Invoices & GST
+  sec('H.  TAX INVOICES  &  GST SUMMARY');
+  // GST summary mini-table first
+  if (rows.invGST) {
+    autoTable(doc, {
+      startY: y, margin: { left: ML, right: ML },
+      head: [['Taxable Value', 'CGST (9%)', 'SGST (9%)', 'Total GST', 'Total Billed', 'Total Collected']],
+      body: [rows.invGST],
+      styles: { fontSize: 8, cellPadding: 2, halign: 'right' },
+      headStyles: { fillColor: [219, 234, 254], textColor: C.dark, fontStyle: 'bold', fontSize: 7.5 },
+      theme: 'grid',
+    });
+    y = doc.lastAutoTable.finalY + 4;
+  }
+  tbl(
+    ['Invoice No', 'Date', 'Customer', 'Status', 'Taxable', 'CGST', 'SGST', 'Total', 'Paid', 'Balance'],
+    rows.inv,
+    null,
+    { 4:{halign:'right'}, 5:{halign:'right'}, 6:{halign:'right'}, 7:{halign:'right'}, 8:{halign:'right'}, 9:{halign:'right'} }
+  );
+
+  // I. Orders Pipeline
+  sec('I.  ORDERS PIPELINE');
+  tbl(
+    ['Order No', 'Date', 'Customer', 'Product', 'Qty', 'Dispatched', 'Pending Qty', 'Total Amt', 'Received', 'Pending Amt'],
+    rows.orders,
+    null,
+    { 4:{halign:'right'}, 5:{halign:'right'}, 6:{halign:'right'}, 7:{halign:'right'}, 8:{halign:'right'}, 9:{halign:'right'} }
+  );
+
+  // J. Outstanding Receivables
+  if (rows.recv && rows.recv.length > 0) {
+    sec('J.  OUTSTANDING RECEIVABLES  (All-time unpaid)');
+    tbl(
+      ['Customer', 'Pending Invoices', 'Balance Due'],
+      rows.recv,
+      null,
+      { 2: { halign: 'right' } }
+    );
+  }
+
+  // K. Quotes
+  if (rows.quotes && rows.quotes.length > 0) {
+    sec('K.  QUOTES PIPELINE');
+    tbl(
+      ['Quote No', 'Date', 'Customer', 'Status', 'Valid Until', 'Total'],
+      rows.quotes,
+      null,
+      { 5: { halign: 'right' } }
+    );
+  }
 
   // CA Notes
   if (y > 230) { doc.addPage(); y = 16; }
@@ -285,21 +346,42 @@ export default function CAExport({ onClose }) {
   const valid = !!(from && to && from <= to);
   const inRange = d => { const s = (d || '').slice(0, 10); return s >= from && s <= to; };
 
-  const expenses       = (app.expenses       || []).filter(e => inRange(e.date));
+  const expenses       = (app.expenses        || []).filter(e => inRange(e.date));
   const matPurchases   = (app.materialPurchases|| []).filter(p => inRange(p.date));
   const laborPayments  = (app.laborPayments   || []).filter(p => inRange(p.date));
   const orderPayments  = (app.orderPayments   || []).filter(p => inRange(p.date));
   const prodEntries    = (app.productionEntries||[]).filter(e => inRange(e.date));
-  const income         = orderPayments.filter(p => p.direction === 'received');
+  const allOrders      = app.orders           || [];
+  const allDispatches  = app.orderDispatches  || [];
+  const allInvoices    = app.invoices         || [];
+  const allQuotes      = app.quotes           || [];
+  const allEnquiries   = app.enquiries        || [];
 
-  const totalIncome  = income.reduce((s, p) => s + num(p.amount), 0);
+  const income         = orderPayments.filter(p => p.direction === 'received');
+  const invInRange     = allInvoices.filter(inv => inRange(inv.date)).map(inv => ({ ...inv, ...calcInvTotals(inv) }));
+
+  const orderIncome  = income.reduce((s, p) => s + num(p.amount), 0);
+  const invCollected = invInRange.reduce((s, i) => s + num(i.paidAmount), 0);
+  const totalIncome  = orderIncome + invCollected;
+  const totalBilled  = invInRange.reduce((s, i) => s + i.total, 0);
+  const totalGST     = invInRange.reduce((s, i) => s + i.taxAmt, 0);
   const matCost      = matPurchases.reduce((s, p) => s + num(p.totalAmount), 0);
   const laborCost    = laborPayments.reduce((s, p) => s + num(p.amount), 0);
   const expCost      = expenses.reduce((s, e) => s + num(e.amount), 0);
   const totalOut     = matCost + laborCost + expCost;
   const netPL        = totalIncome - totalOut;
   const billCount    = expenses.filter(e => e.billImage).length + matPurchases.filter(p => p.billImage).length;
-  const totalTxns    = income.length + matPurchases.length + laborPayments.length + expenses.length;
+  const totalTxns    = income.length + matPurchases.length + laborPayments.length + expenses.length + invInRange.length;
+
+  // Outstanding receivables (all-time)
+  const outstandingByCustomer = Object.values(allInvoices.map(inv => ({ ...inv, ...calcInvTotals(inv) })).reduce((acc, inv) => {
+    const bal = Math.max(0, inv.total - num(inv.paidAmount));
+    if (bal <= 0) return acc;
+    const key = inv.customerName || 'Unknown';
+    if (!acc[key]) acc[key] = { name: key, balance: 0, count: 0 };
+    acc[key].balance += bal; acc[key].count++;
+    return acc;
+  }, {})).sort((a, b) => b.balance - a.balance);
 
   async function generate(mode) {
     if (!valid) return alert('Select a valid date range first.');
@@ -313,11 +395,49 @@ export default function CAExport({ onClose }) {
       const aName = id => app.bankAccounts.find(b => b.id === id)?.name || '—';
       const cName = id => app.expenseCategories.find(c => c.id === id)?.name || '—';
 
+      // Income rows (order payments)
       const incRows = income.map(p => {
-        const o = (app.orders || []).find(x => x.id === p.orderId) || {};
+        const o = allOrders.find(x => x.id === p.orderId) || {};
         return [fmtDate(p.date), o.customerName || '—', o.orderNumber || '—',
           pName(o.productId), aName(p.bankAccountId), rp(p.amount)];
       });
+
+      // Invoice rows
+      const invRows = invInRange.map(inv => {
+        const bal = Math.max(0, inv.total - num(inv.paidAmount));
+        return [
+          inv.invoiceNumber || '—', fmtDate(inv.date), inv.customerName || '—',
+          inv.status || 'draft',
+          rp(inv.taxable), rp(inv.halfTax), rp(inv.halfTax),
+          rp(inv.total), rp(inv.paidAmount), bal > 0 ? rp(bal) : 'Paid',
+        ];
+      });
+      const invGSTRow = invInRange.length > 0 ? [
+        rp(invInRange.reduce((s, i) => s + i.taxable, 0)),
+        rp(totalGST / 2), rp(totalGST / 2), rp(totalGST),
+        rp(totalBilled), rp(invCollected),
+      ] : null;
+
+      // Orders rows
+      const orderRows = allOrders.map(o => {
+        const disp = allDispatches.filter(d => d.orderId === o.id).reduce((s, d) => s + num(d.quantity), 0);
+        const recd = allOrders && orderPayments.filter(p => p.orderId === o.id && p.direction === 'received').reduce((s, p) => s + num(p.amount), 0);
+        return [
+          o.orderNumber || '—', fmtDate(o.date), o.customerName || '—', pName(o.productId),
+          num(o.quantity), disp, Math.max(0, num(o.quantity) - disp),
+          rp(o.totalAmount), rp(recd), rp(Math.max(0, num(o.totalAmount) - recd)),
+        ];
+      });
+
+      // Outstanding receivables
+      const recvRows = outstandingByCustomer.map(c => [c.name, c.count + ' invoice' + (c.count > 1 ? 's' : ''), rp(c.balance)]);
+
+      // Quotes rows
+      const quoteRows = allQuotes.map(q => [
+        q.quoteNumber || '—', fmtDate(q.date), q.customerName || '—',
+        q.status || 'draft', fmtDate(q.validUntil), rp(q.totalAmount),
+      ]);
+
       const matRows = matPurchases.map(p => [
         fmtDate(p.date), mName(p.materialTypeId),
         `${num(p.quantity)} ${mUnit(p.materialTypeId)}`,
@@ -349,26 +469,41 @@ export default function CAExport({ onClose }) {
         pName(e.productId), num(e.quantity), num(e.cementBags), e.notes || '',
       ]);
 
-      // Build P&L PDF
+      // Build comprehensive P&L PDF
       const pdfBytes = buildCAPDF(from, to, label,
-        { income: incRows, mat: matRows, labor: laborRows, exp: expRows, bank: bankRows, prod: prodRows },
+        { income: incRows, inv: invRows, invGST: invGSTRow, orders: orderRows,
+          recv: recvRows, quotes: quoteRows,
+          mat: matRows, labor: laborRows, exp: expRows, bank: bankRows, prod: prodRows },
         { income: totalIncome, matCost, laborCost, expCost, totalOut, netPL }, ci);
 
       // CSVs
-      const csvPL    = toCSV(['Item', 'Amount'], [
-        ['Total Income (Sales)', rp(totalIncome)],
-        ['Material Purchases', rp(matCost)],
-        ['Labour Payments', rp(laborCost)],
-        ['Other Expenses', rp(expCost)],
-        ['Total Expenditure', rp(totalOut)],
-        ['Net P&L', (netPL >= 0 ? '+' : '') + rp(netPL)],
+      const csvPL = toCSV(['Item', 'Amount'], [
+        ['ORDER PAYMENTS RECEIVED',          rp(orderIncome)],
+        ['INVOICE COLLECTIONS',              rp(invCollected)],
+        ['TOTAL INCOME',                     rp(totalIncome)],
+        [''],
+        ['INVOICES — TOTAL BILLED',          rp(totalBilled)],
+        ['INVOICES — CGST (9%)',             rp(totalGST / 2)],
+        ['INVOICES — SGST (9%)',             rp(totalGST / 2)],
+        ['INVOICES — TOTAL GST',             rp(totalGST)],
+        [''],
+        ['Material Purchases',               rp(matCost)],
+        ['Labour Payments',                  rp(laborCost)],
+        ['Other Expenses',                   rp(expCost)],
+        ['Total Expenditure',                rp(totalOut)],
+        [''],
+        ['Net P&L',                          (netPL >= 0 ? '+' : '') + rp(netPL)],
       ]);
-      const csvSales = toCSV(['Date','Customer','Order #','Product','Bank Account','Amount Received'], incRows);
-      const csvMat   = toCSV(['Date','Material','Quantity','Supplier','Bill No','Bill Type','Amount'], matRows);
-      const csvLabor = toCSV(['Date','Labour Group','Payment Type','Bank Account','Notes','Amount'], laborRows);
-      const csvExp   = toCSV(['Date','Category','Description','GST Amount','Bank Account','Bill Type','Amount'], expRows);
-      const csvProd  = toCSV(['Date','Factory','Product','Quantity (pcs)','Cement (bags)','Notes'], prodRows);
-      const csvBank  = toCSV(['Account','Bank','Type','Total Income','Total Outflow','Net'], bankRows);
+      const csvSales  = toCSV(['Date','Customer','Order #','Product','Bank Account','Amount Received'], incRows);
+      const csvInv    = toCSV(['Invoice No','Date','Customer','Status','Taxable','CGST','SGST','Total','Paid','Balance'], invRows);
+      const csvOrders = toCSV(['Order No','Date','Customer','Product','Total Qty','Dispatched','Pending Qty','Total Amt','Received','Pending Amt'], orderRows);
+      const csvQuotes = toCSV(['Quote No','Date','Customer','Status','Valid Until','Total'], quoteRows);
+      const csvRecv   = toCSV(['Customer','Pending Invoices','Balance Due'], recvRows);
+      const csvMat    = toCSV(['Date','Material','Quantity','Supplier','Bill No','Bill Type','Amount'], matRows);
+      const csvLabor  = toCSV(['Date','Labour Group','Payment Type','Bank Account','Notes','Amount'], laborRows);
+      const csvExp    = toCSV(['Date','Category','Description','GST Amount','Bank Account','Bill Type','Amount'], expRows);
+      const csvProd   = toCSV(['Date','Factory','Product','Quantity (pcs)','Cement (bags)','Notes'], prodRows);
+      const csvBank   = toCSV(['Account','Bank','Type','Total Income','Total Outflow','Net'], bankRows);
 
       const slug    = label.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
       const zipName = `Urbanmud_CA_Export_${slug}.zip`;
@@ -377,42 +512,52 @@ export default function CAExport({ onClose }) {
 
       zip.file('README.txt', [
         'URBANMUD MANUFACTURING OPS — CA EXPORT PACKAGE',
-        '='.repeat(52),
-        `Company   : ${ci.name || 'UrbanMud Bricks and Blocks'}`,
-        `Period    : ${label} (${from} to ${to})`,
-        `Generated : ${new Date().toLocaleString('en-IN')}`,
+        '='.repeat(60),
+        `Company    : ${ci.name || 'UrbanMud Bricks and Blocks'}`,
+        `GSTIN      : ${ci.gstin || 'N/A'}`,
+        `Period     : ${label} (${from} to ${to})`,
+        `Generated  : ${new Date().toLocaleString('en-IN')}`,
         `Exported by: ${app.currentUser?.name || 'Super Admin'}`,
         '',
         'FILE CONTENTS',
-        '-'.repeat(52),
-        '01_PL_Statement.pdf          Printable A4 P&L statement — 7 sections with CA notes',
-        '02_PL_Summary.csv            P&L totals summary',
-        '03_Sales_Income.csv          All order payment receipts',
-        '04_Material_Purchases.csv    All material purchases (with URD flag)',
-        '05_Labour_Payments.csv       All labour payments by group',
-        '06_Other_Expenses.csv        All expenses with GST breakdown',
-        '07_Production_Records.csv    Daily production entries',
-        '08_Bank_Account_Summary.csv  Bank-wise income/outflow',
-        'Bills_Expenses/              Original expense bill photos (JPEG)',
-        'Bills_Materials/             Material purchase bill photos (JPEG)',
+        '-'.repeat(60),
+        '01_PL_Statement.pdf              Printable A4 letterhead — 11 sections with CA notes',
+        '02_PL_Summary.csv               P&L totals + GST summary',
+        '03_Sales_Income.csv             Order payment receipts',
+        '04_Tax_Invoices_GST.csv         Tax invoices with CGST/SGST breakdown',
+        '05_Orders_Pipeline.csv          All orders (qty dispatched, pending, payment status)',
+        '06_Outstanding_Receivables.csv  All-time unpaid invoice balances by customer',
+        '07_Quotes_Pipeline.csv          All quotes (status, conversion)',
+        '08_Material_Purchases.csv       Material purchases (with URD flag)',
+        '09_Labour_Payments.csv          Labour payments by group',
+        '10_Other_Expenses.csv           Expenses with GST breakdown',
+        '11_Production_Records.csv       Production entries by date',
+        '12_Bank_Account_Summary.csv     Bank-wise income/outflow/net',
+        'Bills_Expenses/                 Original expense bill photos (JPEG)',
+        'Bills_Materials/                Material purchase bill photos (JPEG)',
         '',
         'NOTES FOR CA',
-        '-'.repeat(52),
+        '-'.repeat(60),
         '* URD = Unregistered Dealer Receipt (supplier not registered under GST)',
-        '* GST amounts in expenses are input tax credits claimed',
-        '* Verify bill photos against transaction records for ITC reconciliation',
-        '* Labour payments include regular, advance, and overtime — see "Type" column',
-        '* All amounts in Indian Rupees (INR)',
+        '* GST on invoices: CGST 9% + SGST 9% = 18% total (intra-state supply)',
+        '* Input Tax Credit (ITC): verify GST column in expenses against original bills',
+        '* Labour payments include regular wages, advance, overtime, festival bonus — see Type column',
+        '* Receivables: all-time outstanding (not limited to report period)',
+        '* All amounts in Indian Rupees (INR). Verify PAN & GSTIN of suppliers for ITC eligibility.',
       ].join('\n'));
 
-      zip.file('01_PL_Statement.pdf', pdfBytes);
-      zip.file('02_PL_Summary.csv', csvPL);
-      zip.file('03_Sales_Income.csv', csvSales);
-      zip.file('04_Material_Purchases.csv', csvMat);
-      zip.file('05_Labour_Payments.csv', csvLabor);
-      zip.file('06_Other_Expenses.csv', csvExp);
-      zip.file('07_Production_Records.csv', csvProd);
-      zip.file('08_Bank_Account_Summary.csv', csvBank);
+      zip.file('01_PL_Statement.pdf',              pdfBytes);
+      zip.file('02_PL_Summary.csv',                csvPL);
+      zip.file('03_Sales_Income.csv',              csvSales);
+      zip.file('04_Tax_Invoices_GST.csv',          csvInv);
+      zip.file('05_Orders_Pipeline.csv',           csvOrders);
+      if (recvRows.length > 0) zip.file('06_Outstanding_Receivables.csv', csvRecv);
+      if (quoteRows.length > 0) zip.file('07_Quotes_Pipeline.csv',        csvQuotes);
+      zip.file('08_Material_Purchases.csv',        csvMat);
+      zip.file('09_Labour_Payments.csv',           csvLabor);
+      zip.file('10_Other_Expenses.csv',            csvExp);
+      zip.file('11_Production_Records.csv',        csvProd);
+      zip.file('12_Bank_Account_Summary.csv',      csvBank);
 
       const expFolder = zip.folder('Bills_Expenses');
       expenses.filter(e => e.billImage && e.billMode === 'uploaded').forEach((e, i) => {
@@ -447,7 +592,7 @@ export default function CAExport({ onClose }) {
         setTimeout(() => URL.revokeObjectURL(url), 2000);
       }
 
-      setDone(`✅ CA package ready  —  ${Math.round(zipBlob.size / 1024)} KB  ·  ${billCount} bills  ·  ${totalTxns} transactions`);
+      setDone(`✅ CA package ready  —  ${Math.round(zipBlob.size / 1024)} KB  ·  ${billCount} bills  ·  ${totalTxns} transactions  ·  ${invInRange.length} invoices  ·  ${allQuotes.length} quotes`);
     } catch (err) {
       alert('Export failed: ' + err.message);
       console.error(err);
@@ -508,12 +653,18 @@ export default function CAExport({ onClose }) {
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Period Preview</p>
             <div className="grid grid-cols-3 gap-2">
               {[
-                ['Income',       `₹${fmt(totalIncome)}`,   totalIncome > 0  ? 'text-green-600' : 'text-gray-500'],
-                ['Expenditure',  `₹${fmt(totalOut)}`,      totalOut    > 0  ? 'text-red-600'   : 'text-gray-500'],
-                ['Net P&L',      `${netPL >= 0 ? '+' : ''}₹${fmt(netPL)}`, netPL >= 0 ? 'text-green-600' : 'text-red-600'],
-                ['Transactions', totalTxns,                'text-gray-800'],
-                ['Bill Photos',  billCount,                'text-gray-800'],
-                ['Prod. Entries',prodEntries.length,        'text-gray-800'],
+                ['Total Income',    `₹${fmt(totalIncome)}`,  totalIncome > 0 ? 'text-green-600' : 'text-gray-500'],
+                ['Expenditure',     `₹${fmt(totalOut)}`,     totalOut > 0    ? 'text-red-600'   : 'text-gray-500'],
+                ['Net P&L',         `${netPL >= 0 ? '+' : ''}₹${fmt(netPL)}`, netPL >= 0 ? 'text-green-600' : 'text-red-600'],
+                ['Billed (Inv)',    `₹${fmt(totalBilled)}`,  totalBilled > 0 ? 'text-blue-600'  : 'text-gray-500'],
+                ['GST Collected',  `₹${fmt(totalGST)}`,     totalGST > 0    ? 'text-purple-600': 'text-gray-500'],
+                ['Outstanding',    `₹${fmt(outstandingByCustomer.reduce((s,c)=>s+c.balance,0))}`, 'text-red-500'],
+                ['Invoices',        invInRange.length,        'text-gray-800'],
+                ['Quotes',          allQuotes.length,         'text-gray-800'],
+                ['Bill Photos',     billCount,                'text-gray-800'],
+                ['Transactions',    totalTxns,                'text-gray-800'],
+                ['Prod. Entries',   prodEntries.length,       'text-gray-800'],
+                ['Enquiries',       allEnquiries.length,      'text-gray-800'],
               ].map(([l, v, c]) => (
                 <div key={l} className="bg-gray-50 rounded-xl p-2.5">
                   <p className="text-[9px] text-gray-400 leading-tight">{l}</p>
@@ -529,11 +680,17 @@ export default function CAExport({ onClose }) {
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">What's in the ZIP</p>
           <div className="space-y-2">
             {[
-              { icon:'📄', title:'01_PL_Statement.pdf',      desc:'Printable A4 letterhead — Income, Expenses, P&L, Bank summary, CA notes', bg:'bg-amber-50', tc:'text-amber-700' },
-              { icon:'📊', title:'02–08 CSV data files',      desc:'P&L · Sales · Materials · Labour · Expenses · Production · Bank (open in Excel)', bg:'bg-blue-50', tc:'text-blue-700' },
-              { icon:'🧾', title:`Bills_Expenses/ (${expenses.filter(e=>e.billImage).length} files)`, desc:'Original expense bill photos as JPEG', bg:'bg-green-50', tc:'text-green-700' },
+              { icon:'📄', title:'01_PL_Statement.pdf',           desc:'A4 letterhead — 11 sections: Income, Invoices/GST, Orders, Receivables, Quotes, Materials, Labour, Expenses, P&L, Bank, Production', bg:'bg-amber-50', tc:'text-amber-700' },
+              { icon:'📊', title:'02_PL_Summary.csv',             desc:'P&L totals + full GST breakdown (CGST/SGST)', bg:'bg-blue-50', tc:'text-blue-700' },
+              { icon:'🧾', title:'03_Sales_Income.csv',           desc:'Order payment receipts for the period', bg:'bg-blue-50', tc:'text-blue-700' },
+              { icon:'📋', title:`04_Tax_Invoices_GST.csv (${invInRange.length})`, desc:'Tax invoices with CGST/SGST/Total/Paid/Balance', bg:'bg-indigo-50', tc:'text-indigo-700' },
+              { icon:'�', title:'05_Orders_Pipeline.csv',        desc:'All orders: dispatched qty, pending qty, payment status', bg:'bg-blue-50', tc:'text-blue-700' },
+              { icon:'⚠️', title:`06_Outstanding_Receivables.csv (${outstandingByCustomer.length} customers)`, desc:'All-time unpaid invoice balances', bg:'bg-red-50', tc:'text-red-700' },
+              { icon:'💬', title:`07_Quotes_Pipeline.csv (${allQuotes.length})`, desc:'All quotes with status and conversion info', bg:'bg-blue-50', tc:'text-blue-700' },
+              { icon:'📊', title:'08–12 More CSVs',               desc:'Material Purchases · Labour · Expenses · Production · Bank (open in Excel)', bg:'bg-blue-50', tc:'text-blue-700' },
+              { icon:'🖼️', title:`Bills_Expenses/ (${expenses.filter(e=>e.billImage).length} files)`, desc:'Original expense bill photos as JPEG', bg:'bg-green-50', tc:'text-green-700' },
               { icon:'📦', title:`Bills_Materials/ (${matPurchases.filter(p=>p.billImage).length} files)`, desc:'Material purchase bill photos as JPEG', bg:'bg-green-50', tc:'text-green-700' },
-              { icon:'📝', title:'README.txt',                desc:'Contents index + notes for CA about URD, GST, ITC', bg:'bg-gray-50', tc:'text-gray-700' },
+              { icon:'📝', title:'README.txt',                    desc:'Full index + CA notes: URD, GST ITC, labour types, receivables', bg:'bg-gray-50', tc:'text-gray-700' },
             ].map(({ icon, title, desc, bg, tc }) => (
               <div key={title} className={`${bg} rounded-xl px-3 py-2.5`}>
                 <p className={`text-xs font-bold ${tc}`}>{icon} {title}</p>

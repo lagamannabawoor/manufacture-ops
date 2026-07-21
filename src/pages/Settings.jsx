@@ -1083,19 +1083,26 @@ function CompanyInfoPanel({ onClose }) {
 
 /* ── BACKUP & RESTORE ─────────────────────────────────────────── */
 const PREVIEW_KEYS = [
-  ['productionEntries', 'Production Entries'],
-  ['materialPurchases', 'Material Purchases'],
-  ['expenses',          'Expenses'],
-  ['laborPayments',     'Labour Payments'],
-  ['orders',            'Orders'],
-  ['orderPayments',     'Order Payments'],
-  ['quotes',            'Quotes'],
-  ['invoices',          'Invoices'],
-  ['products',          'Products'],
-  ['materialTypes',     'Material Types'],
-  ['laborGroups',       'Labour Groups'],
-  ['bankAccounts',      'Bank Accounts'],
-  ['expenseCategories', 'Expense Categories'],
+  ['productionEntries',  'Production Entries'],
+  ['pendingProduction',  'Pending Production'],
+  ['materialPurchases',  'Material Purchases'],
+  ['expenses',           'Expenses'],
+  ['laborPayments',      'Labour Payments'],
+  ['orders',             'Orders'],
+  ['orderPayments',      'Order Payments'],
+  ['orderDispatches',    'Order Dispatches'],
+  ['invoices',           'Invoices'],
+  ['quotes',             'Quotes'],
+  ['enquiries',          'Enquiries'],
+  ['products',           'Products'],
+  ['factories',          'Factories'],
+  ['productCategories',  'Product Categories'],
+  ['materialTypes',      'Material Types'],
+  ['laborGroups',        'Labour Groups'],
+  ['bankAccounts',       'Bank Accounts'],
+  ['expenseCategories',  'Expense Categories'],
+  ['users',              'Users'],
+  ['auditLog',           'Audit Log Events'],
 ];
 
 function toBase64UTF8(str) {
@@ -1212,11 +1219,13 @@ function BackupRestorePanel({ onClose }) {
           </div>
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 text-xs text-emerald-700 space-y-0.5">
             {[
-              'All material purchases incl. uploaded bill photos',
-              'All expenses incl. bill photos & URD invoices',
-              'Production history, labour payments',
-              'Sales quotes, invoices, orders & payments',
-              'Master data, bank accounts, company info',
+              'Production entries, pending & approved',
+              'Material purchases incl. uploaded bill photos',
+              'Expenses incl. bill photos, GST info & URD invoices',
+              'Labour payments, groups & all-time balances',
+              'Sales: invoices (GST), quotes, enquiries, orders, dispatches & payments',
+              'Master data: products, factories, categories, bank accounts',
+              'Company info, report emails, users & full audit log',
             ].map((l, i) => <p key={i} className="flex items-start gap-1"><span className="mt-0.5">✓</span> {l}</p>)}
           </div>
           <p className="text-[10px] text-gray-400 mb-3">⚠️ Bill photos are embedded in the file — backup size may be large if many photos are stored.</p>
