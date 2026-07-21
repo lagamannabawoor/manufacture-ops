@@ -348,18 +348,21 @@ export default function Materials() {
                   </div>
                   {purchased > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-50">
-                      <div className="flex gap-4 mb-2 flex-wrap">
+                      <div className="grid grid-cols-3 gap-2 mb-2 text-center">
                         {useKg && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-gray-400">Purchased:</span>
-                            <span className="text-xs font-semibold text-green-700">{fmtKg(purchasedKg)}</span>
+                          <div>
+                            <p className="text-xs font-semibold text-green-700">{fmtKg(purchasedKg)}</p>
+                            <p className="text-[10px] text-gray-400">Purchased</p>
                           </div>
                         )}
-                        {consumedKg > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <TrendingDown size={12} className="text-red-400" />
-                            <span className="text-xs text-gray-400">Used:</span>
-                            <span className="text-xs font-semibold text-red-600">{fmtKg(consumedKg)}</span>
+                        <div>
+                          <p className="text-xs font-semibold text-red-600">{consumedKg > 0 ? fmtKg(consumedKg) : '—'}</p>
+                          <p className="text-[10px] text-gray-400">Used</p>
+                        </div>
+                        {useKg && (
+                          <div>
+                            <p className={`text-xs font-semibold ${stockKg > 0 ? 'text-blue-700' : 'text-red-500'}`}>{fmtKg(Math.max(0, stockKg))}</p>
+                            <p className="text-[10px] text-gray-400">Available</p>
                           </div>
                         )}
                       </div>
