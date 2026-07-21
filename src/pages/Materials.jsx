@@ -171,6 +171,16 @@ export default function Materials() {
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
   const [filterMat, setFilterMat]   = useState('');
 
+  function openAddForMaterial(matId) {
+    const f = freshForm();
+    f.materialTypeId = matId;
+    const mat = app.materialTypes.find(m => m.id === matId);
+    const wpu = parseFloat(mat?.weightKgPerUnit) || 0;
+    if (wpu > 0) { f.weightKgPerUnit = String(wpu); f.weightLocked = true; }
+    setForm(f);
+    setShowModal(true);
+  }
+
   function set(k, v) {
     setForm(f => {
       const updated = { ...f, [k]: v };
@@ -355,12 +365,11 @@ export default function Materials() {
           return (
             <div className="grid grid-cols-2 gap-2">
               {stockItems.map(({ mat, stockLabel, stockVal, pct, purchased }) => (
-                <div key={mat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+                <div key={mat.id} onClick={() => openAddForMaterial(mat.id)}
+                  className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 cursor-pointer active:scale-95 transition-transform hover:border-amber-300">
                   <p className="text-xs font-semibold text-gray-600 truncate mb-1">{mat.name}</p>
                   <p className={`text-lg font-bold leading-tight ${stockVal > 0 ? 'text-gray-800' : 'text-red-500'}`}>{stockLabel}</p>
-                  <p className="text-[10px] text-gray-400 mb-1.5">
-                    {purchased} {mat.unit} bought{(mat.unit||'').toLowerCase() === 'trucks' && !mat.weightKgPerUnit ? ' · @30T/truck' : ''}
-                  </p>
+                  <p className="text-[10px] text-gray-400 mb-1.5">{purchased} {mat.unit} bought</p>
                   {purchased > 0 && (
                     <div className="w-full bg-gray-100 rounded-full h-1">
                       <div className={`h-1 rounded-full transition-all ${stockVal > 0 ? 'bg-amber-500' : 'bg-red-400'}`}
