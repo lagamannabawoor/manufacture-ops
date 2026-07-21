@@ -223,20 +223,13 @@ export default function Production() {
                   <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1.5">
                     <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${p.pct}%` }} />
                   </div>
-                  <div className="grid grid-cols-3 gap-1 text-center">
-                    <div>
-                      <p className="text-xs font-semibold text-blue-700">{fmt(p.produced)}</p>
-                      <p className="text-[10px] text-gray-400">Produced</p>
+                  {p.pendingOrdered > 0 && (
+                    <div className="flex justify-end mt-0.5">
+                      <span className="text-[10px] font-semibold text-red-500 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">
+                        {fmt(p.pendingOrdered)} pending orders
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-amber-600">{fmt(p.dispatched)}</p>
-                      <p className="text-[10px] text-gray-400">Dispatched</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-red-500">{fmt(p.pendingOrdered)}</p>
-                      <p className="text-[10px] text-gray-400">Pending Orders</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -352,7 +345,10 @@ export default function Production() {
                         <div className="mt-1.5 flex flex-wrap items-center gap-1">
                           {hasMaterials && entry.materialsUsed.filter(mu => mu.kgUsed > 0).map((mu, idx) => {
                             const mat = app.materialTypes.find(m => m.id === mu.materialTypeId);
-                            const kgDisp = mu.kgUsed >= 1000 ? `${(mu.kgUsed/1000).toFixed(2)}T` : `${mu.kgUsed.toFixed(2)}kg`;
+                            const isBagUnit = mat?.unit?.toLowerCase() === 'bags';
+                            const kgDisp = isBagUnit
+                              ? `${Math.round(mu.kgUsed)}Kgs (${Math.round(mu.kgUsed / 50)} Bags)`
+                              : mu.kgUsed >= 1000 ? `${(mu.kgUsed/1000).toFixed(2)}T` : `${mu.kgUsed.toFixed(2)}kg`;
                             return (
                               <span key={idx} className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-100">
                                 {mat?.name}: {kgDisp}
