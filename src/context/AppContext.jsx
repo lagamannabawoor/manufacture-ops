@@ -314,9 +314,18 @@ export function AppProvider({ children }) {
 
   function resetData(preserve = {}) {
     const next = { ...SEED };
-    if (preserve.users)        next.users        = data.users;
-    if (preserve.reportEmails) next.reportEmails  = data.reportEmails;
-    if (preserve.companyInfo)  next.companyInfo   = data.companyInfo;
+    if (preserve.users)        next.users             = data.users;
+    if (preserve.reportEmails) next.reportEmails       = data.reportEmails;
+    if (preserve.companyInfo)  next.companyInfo        = data.companyInfo;
+    if (preserve.masterData) {
+      next.factories         = data.factories;
+      next.productCategories = data.productCategories;
+      next.products          = data.products;
+      next.materialTypes     = data.materialTypes;
+      next.laborGroups       = data.laborGroups;
+      next.bankAccounts      = data.bankAccounts;
+      next.expenseCategories = data.expenseCategories;
+    }
     setData(next);
     dirtyKeysRef.current = new Set(Object.keys(next));
   }

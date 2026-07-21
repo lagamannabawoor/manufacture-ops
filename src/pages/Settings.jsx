@@ -883,14 +883,15 @@ function ReportEmailsPanel({ onClose }) {
 }
 
 const RETAIN_OPTIONS = [
-  { key: 'users',        label: 'User accounts & roles',        desc: 'All user logins, passwords and permissions' },
-  { key: 'reportEmails', label: 'Report email recipients',       desc: 'Daily report mailing list' },
-  { key: 'companyInfo',  label: 'Company info & address',        desc: 'Name, GSTIN, address, logo & signature' },
+  { key: 'users',        label: 'User accounts & roles',              desc: 'All user logins, passwords and permissions' },
+  { key: 'reportEmails', label: 'Report email recipients',             desc: 'Daily report mailing list' },
+  { key: 'companyInfo',  label: 'Company info & address',              desc: 'Name, GSTIN, address, logo & signature' },
+  { key: 'masterData',   label: 'Master data (Factories, Products, Materials, Labour Groups, Bank Accounts, Expense Categories)', desc: 'Keep your custom master setup — uncheck to reset back to factory defaults' },
 ];
 
 function ResetSection() {
   const app = useApp();
-  const [retain, setRetain] = useState({ users: true, reportEmails: true, companyInfo: true });
+  const [retain, setRetain] = useState({ users: true, reportEmails: true, companyInfo: true, masterData: false });
   const [open, setOpen] = useState(false);
 
   function toggle(key) { setRetain(r => ({ ...r, [key]: !r[key] })); }
@@ -936,9 +937,10 @@ function ResetSection() {
           </div>
 
           <div className="bg-red-100 rounded-xl p-3">
-            <p className="text-[10px] text-red-600 font-semibold mb-1">Will always be deleted:</p>
+            <p className="text-[10px] text-red-600 font-semibold mb-1">Will be deleted / reset:</p>
             <p className="text-[10px] text-red-500 leading-relaxed">
               Production entries · Material purchases · Labour payments · Expenses · Orders · Invoices · Quotes · Enquiries · Audit log · Order dispatches & payments
+              {!retain.masterData && ' · Factories · Product categories · Products · Material types · Labour groups · Bank accounts · Expense categories (→ factory defaults)'}
             </p>
           </div>
 
