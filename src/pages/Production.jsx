@@ -23,7 +23,7 @@ export default function Production() {
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
   const [filterCat, setFilterCat]   = useState('');
   const [filterFactory, setFilterFactory] = useState('');
-  const [activeTab, setActiveTab] = useState('records');
+  const [activeTab, setActiveTab] = useState('stock');
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -162,7 +162,7 @@ export default function Production() {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4">
-        {[['records', Factory, 'Records'], ['stock', Package, 'Stock']].map(([t, Icon, label]) => (
+        {[['stock', Package, 'Stock'], ['records', Factory, 'Records']].map(([t, Icon, label]) => (
           <button key={t} onClick={() => setActiveTab(t)}
             className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === t ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500'}`}>
             <Icon size={14} />{label}
