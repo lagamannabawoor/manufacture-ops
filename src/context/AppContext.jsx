@@ -313,10 +313,31 @@ export function AppProvider({ children }) {
   }
 
   function resetData(preserve = {}) {
-    const next = { ...SEED };
-    if (preserve.users)        next.users             = data.users;
-    if (preserve.reportEmails) next.reportEmails       = data.reportEmails;
-    if (preserve.companyInfo)  next.companyInfo        = data.companyInfo;
+    // Start from SEED then explicitly blank every operational array
+    const next = {
+      ...SEED,
+      productionEntries:  [],
+      pendingProduction:  [],
+      materialPurchases:  [],
+      expenses:           [],
+      laborPayments:      [],
+      orders:             [],
+      orderPayments:      [],
+      orderDispatches:    [],
+      invoices:           [],
+      quotes:             [],
+      enquiries:          [],
+      auditLog:           [],
+      // Master data — blank unless retained
+      factories:          [],
+      productCategories:  [],
+      products:           [],
+      materialTypes:      [],
+      laborGroups:        [],
+      bankAccounts:       [],
+      expenseCategories:  [],
+    };
+    // Restore preserved sections from current data
     if (preserve.masterData) {
       next.factories         = data.factories;
       next.productCategories = data.productCategories;
@@ -326,6 +347,9 @@ export function AppProvider({ children }) {
       next.bankAccounts      = data.bankAccounts;
       next.expenseCategories = data.expenseCategories;
     }
+    if (preserve.users)        next.users        = data.users;
+    if (preserve.reportEmails) next.reportEmails = data.reportEmails;
+    if (preserve.companyInfo)  next.companyInfo  = data.companyInfo;
     setData(next);
     dirtyKeysRef.current = new Set(Object.keys(next));
   }
