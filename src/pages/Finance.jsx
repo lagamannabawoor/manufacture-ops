@@ -477,7 +477,12 @@ function LaborTab() {
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
   const [filterGroup, setFilterGroup] = useState('');
   const [filterPayType, setFilterPayType] = useState('');
+  const emptyForm = { date: todayISO(), laborGroupId: '', amount: '', paymentType: 'regular', bankAccountId: '', notes: '' };
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function openPayModal(groupId, balance) {
+    setForm({ ...emptyForm, laborGroupId: groupId, amount: balance > 0 ? String(balance) : '' });
+    setShowModal(true);
+  }
   function save() {
     if (!form.laborGroupId || !form.amount) return alert('Group and amount required.');
     app.addItem('laborPayments', form);
@@ -510,7 +515,7 @@ function LaborTab() {
     <div className="px-4 py-4">
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-sm font-semibold text-gray-700">Labour Balance Sheet</h2>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-1 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">
+        <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="flex items-center gap-1 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">
           <Plus size={14} /> Add Payment
         </button>
       </div>
@@ -550,6 +555,14 @@ function LaborTab() {
                   </p>
                 </div>
               </div>
+              {g.status === 'pending' && (
+                <button
+                  onClick={() => openPayModal(g.id, g.balance)}
+                  className="mt-3 w-full py-2 bg-green-600 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                >
+                  <Plus size={13} /> Pay ₹{fmt(g.balance)} to {g.name}
+                </button>
+              )}
             </div>
           );
         })}
