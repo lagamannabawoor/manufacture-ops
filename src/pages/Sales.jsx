@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import { Plus, Trash2, Eye, Pencil, Printer, FileText, Receipt, ArrowRight, X, Download, Share2, Loader, Filter, Search, MessageSquare } from 'lucide-react';
+import { OrdersTab } from './Finance';
 import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -128,7 +129,7 @@ function freshInvoice(fromQuote) {
 export default function Sales({ initialAction, onActionConsumed }) {
   const app = useApp();
   const canWrite = (app.currentUser?.role === 'admin' || app.currentUser?.role === 'accountant');
-  const [activeTab, setActiveTab] = useState('quotes');
+  const [activeTab, setActiveTab] = useState('enquiries');
   const [pendingEnqAdd, setPendingEnqAdd] = useState(false);
   const [modalType, setModalType] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -150,7 +151,7 @@ export default function Sales({ initialAction, onActionConsumed }) {
 
   function openCreate(type, pre) {
     setEditing(null); setPrefill(pre || null);
-    setModalType(type); setActiveTab(type === 'quote' ? 'quotes' : 'invoices');
+    setModalType(type); setActiveTab(type === 'quote' ? 'quotes' : activeTab);
   }
 
   useEffect(() => {
@@ -173,16 +174,12 @@ export default function Sales({ initialAction, onActionConsumed }) {
 
   return (
     <div>
-      <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : 'Quotes & Invoices'}
+      <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : activeTab === 'orders' ? 'Orders' : 'Quotes'}
         action={canWrite && (
           <div className="flex gap-1">
             <button onClick={() => openCreate('quote')}
               className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2" title="New Quote">
               <FileText size={18} />
-            </button>
-            <button onClick={() => openCreate('invoice')}
-              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2" title="New Invoice">
-              <Receipt size={18} />
             </button>
           </div>
         )}
@@ -190,9 +187,9 @@ export default function Sales({ initialAction, onActionConsumed }) {
 
       {/* Tabs */}
       <div className="flex px-4 pt-4 gap-1.5">
-        {[{ id: 'quotes', label: `Quotes (${quotes.length})` },
-          { id: 'invoices', label: `Invoices (${invoices.length})` },
-          { id: 'enquiries', label: `Enquiries (${(app.enquiries||[]).length})` }].map(t => (
+        {[{ id: 'enquiries', label: `Enquiries (${(app.enquiries||[]).length})` },
+          { id: 'quotes',    label: `Quotes (${quotes.length})` },
+          { id: 'orders',    label: `Sales (${(app.orders||[]).length})` }].map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${activeTab === t.id ? 'bg-amber-700 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200'}`}>
             {t.label}
@@ -201,9 +198,10 @@ export default function Sales({ initialAction, onActionConsumed }) {
       </div>
 
       {activeTab === 'enquiries' && <EnquiriesTab doAdd={pendingEnqAdd} onAddDone={() => setPendingEnqAdd(false)} />}
+      {activeTab === 'orders' && <OrdersTab />}
 
-      {/* Filter bar — quotes & invoices only */}
-      {activeTab !== 'enquiries' && <div className="px-4 pt-3">
+      {/* Filter bar — quotes only */}
+      {activeTab === 'quotes' && <div className="px-4 pt-3">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
           <div className="flex items-center gap-1.5 mb-2">
             <Filter size={12} className="text-amber-700" />
@@ -212,54 +210,28 @@ export default function Sales({ initialAction, onActionConsumed }) {
           <div className="grid grid-cols-2 gap-2">
             <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
             <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
-            {activeTab === 'quotes' ? (
-              <select className={`${selectCls} col-span-2`} value={filterQStatus} onChange={e => setFilterQStatus(e.target.value)}>
-                <option value="">All Statuses</option>
-                {Object.entries(QUOTE_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            ) : (
-              <select className={`${selectCls} col-span-2`} value={filterIStatus} onChange={e => setFilterIStatus(e.target.value)}>
-                <option value="">All Statuses</option>
-                {Object.entries(INVOICE_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            )}
+            <select className={`${selectCls} col-span-2`} value={filterQStatus} onChange={e => setFilterQStatus(e.target.value)}>
+              <option value="">All Statuses</option>
+              {Object.entries(QUOTE_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
           </div>
         </div>
       </div>}
 
-      {activeTab !== 'enquiries' && <div className="px-4 py-4 space-y-3">
-        {activeTab === 'quotes' ? (
-          quotes.length === 0
-            ? <EmptyCard icon="📄" label="No Quotes in this range" sub="Adjust dates or tap the document icon" />
-            : quotes.map(q => (
-                <DocCard key={q.id} docNo={q.quoteNumber} customerName={q.customerName}
-                  date={q.date} statusMap={QUOTE_STATUS} status={q.status}
-                  totalLabel={cur(calcDoc(q.items||[], q.taxType, q.taxRate, q.discountValue, q.discountType).total)}
-                  subLabel={`Valid till ${fmtDate(q.validUntil)}`}
-                  onView={() => setViewing({ doc: q, type: 'quote' })}
-                  onEdit={canWrite ? () => openEdit('quote', q) : null}
-                  onDelete={canWrite ? () => { if (confirm(`Delete ${q.quoteNumber}?`)) app.deleteItem('quotes', q.id); } : null}
-                />
-              ))
-        ) : (
-          invoices.length === 0
-            ? <EmptyCard icon="🧾" label="No Invoices in this range" sub="Adjust dates or tap the receipt icon" />
-            : invoices.map(inv => {
-                const { total, subtotal } = calcDoc(inv.items||[], inv.taxType, inv.taxRate, inv.discountValue, inv.discountType);
-                const paid = Number(inv.paidAmount) || 0;
-                const balance = Math.max(0, total - paid);
-                return (
-                  <DocCard key={inv.id} docNo={inv.invoiceNumber} customerName={inv.customerName}
-                    date={inv.date} statusMap={INVOICE_STATUS} status={inv.status}
-                    totalLabel={cur(total)}
-                    subLabel={balance > 0 ? `Balance: ${cur(balance)}` : 'Fully Paid'}
-                    onView={() => setViewing({ doc: inv, type: 'invoice' })}
-                    onEdit={canWrite ? () => openEdit('invoice', inv) : null}
-                    onDelete={canWrite ? () => { if (confirm(`Delete ${inv.invoiceNumber}?`)) app.deleteItem('invoices', inv.id); } : null}
-                  />
-                );
-              })
-        )}
+      {activeTab === 'quotes' && <div className="px-4 py-4 space-y-3">
+        {quotes.length === 0
+          ? <EmptyCard icon="📄" label="No Quotes in this range" sub="Adjust dates or tap the document icon" />
+          : quotes.map(q => (
+              <DocCard key={q.id} docNo={q.quoteNumber} customerName={q.customerName}
+                date={q.date} statusMap={QUOTE_STATUS} status={q.status}
+                totalLabel={cur(calcDoc(q.items||[], q.taxType, q.taxRate, q.discountValue, q.discountType).total)}
+                subLabel={`Valid till ${fmtDate(q.validUntil)}`}
+                onView={() => setViewing({ doc: q, type: 'quote' })}
+                onEdit={canWrite ? () => openEdit('quote', q) : null}
+                onDelete={canWrite ? () => { if (confirm(`Delete ${q.quoteNumber}?`)) app.deleteItem('quotes', q.id); } : null}
+              />
+            ))
+        }
       </div>}
 
       {/* Create / Edit modal */}

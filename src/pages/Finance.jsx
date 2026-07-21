@@ -467,7 +467,7 @@ export default function Finance() {
 }
 
 /* ── LABOR ─────────────────────────────────────────────── */
-function LaborTab() {
+export function LaborTab() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ date: todayISO(), laborGroupId: '', amount: '', paymentType: 'regular', bankAccountId: '', notes: '' });
@@ -684,7 +684,7 @@ function LaborTab() {
 }
 
 /* ── ORDERS ─────────────────────────────────────────────── */
-function OrdersTab() {
+export function OrdersTab() {
   const app = useApp();
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
@@ -1186,7 +1186,7 @@ function OrdersTab() {
 }
 
 /* ── EXPENSES ─────────────────────────────────────────────── */
-function ExpensesTab() {
+export function ExpensesTab() {
   const app = useApp();
   const [showModal, setShowModal] = useState(false);
   const [capturing, setCapturing]     = useState(false);

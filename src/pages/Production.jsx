@@ -21,8 +21,10 @@ export default function Production() {
   const [form, setForm] = useState(emptyForm);
   const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
-  const [filterCat, setFilterCat]   = useState('');
+  const [filterCat, setFilterCat]       = useState('');
   const [filterFactory, setFilterFactory] = useState('');
+  const [filterLabour, setFilterLabour]   = useState('');
+  const [filterMaterial, setFilterMaterial] = useState('');
   const [activeTab, setActiveTab] = useState('stock');
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -60,6 +62,8 @@ export default function Production() {
       return prod?.categoryId === filterCat;
     })
     .filter(e => !filterFactory || e.factoryId === filterFactory)
+    .filter(e => !filterLabour || e.laborGroupId === filterLabour)
+    .filter(e => !filterMaterial || (e.materialsUsed || []).some(mu => mu.materialTypeId === filterMaterial && mu.kgUsed > 0))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const totalUnits = filtered.reduce((s, e) => s + Number(e.quantity || 0), 0);
@@ -295,6 +299,14 @@ export default function Production() {
                 <select className={selectCls} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
                   <option value="">All Categories</option>
                   {app.productCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select className={selectCls} value={filterLabour} onChange={e => setFilterLabour(e.target.value)}>
+                  <option value="">All Labour Groups</option>
+                  {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+                <select className={selectCls} value={filterMaterial} onChange={e => setFilterMaterial(e.target.value)}>
+                  <option value="">All Materials</option>
+                  {app.materialTypes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
             </div>

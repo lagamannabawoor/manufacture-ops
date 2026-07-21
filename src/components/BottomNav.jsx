@@ -1,15 +1,14 @@
 import React from 'react';
-import { Home, Factory, Package, Wallet, BarChart2, Settings, ShoppingCart } from 'lucide-react';
+import { Home, Factory, ShoppingBag, BarChart2, Settings, ShoppingCart } from 'lucide-react';
 import { ROLES } from '../context/AppContext';
 
 const ALL_TABS = [
-  { id: 'dashboard',  label: 'Home',       icon: Home      },
-  { id: 'production', label: 'Production',  icon: Factory   },
-  { id: 'materials',  label: 'Materials',   icon: Package   },
-  { id: 'finance',    label: 'Finance',     icon: Wallet       },
-  { id: 'sales',      label: 'Sales',       icon: ShoppingCart },
-  { id: 'reports',    label: 'Reports',     icon: BarChart2    },
-  { id: 'settings',   label: 'Settings',    icon: Settings  },
+  { id: 'dashboard',  label: 'Home',       icon: Home        },
+  { id: 'production', label: 'Production', icon: Factory     },
+  { id: 'purchases',  label: 'Purchases',  icon: ShoppingBag },
+  { id: 'sales',      label: 'Sales',      icon: ShoppingCart },
+  { id: 'reports',    label: 'Reports',    icon: BarChart2   },
+  { id: 'settings',   label: 'Settings',   icon: Settings    },
 ];
 
 export default function BottomNav({ current, onChange, role }) {

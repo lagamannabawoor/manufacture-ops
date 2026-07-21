@@ -179,7 +179,7 @@ export default function Dashboard({ navigate }) {
                 </button>
               )}
               {overdueOrders > 0 && (
-                <button onClick={() => navigate('finance')} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 active:bg-gray-100">
+                <button onClick={() => navigate('sales')} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 active:bg-gray-100">
                   <div className="flex items-center gap-2">
                     <Truck size={13} className="text-red-500" />
                     <span className="text-xs text-gray-700">{overdueOrders} order{overdueOrders > 1 ? 's' : ''} past delivery date</span>
@@ -188,7 +188,7 @@ export default function Dashboard({ navigate }) {
                 </button>
               )}
               {lowStockMats.map(m => (
-                <button key={m.id} onClick={() => navigate('materials')} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 active:bg-gray-100">
+                <button key={m.id} onClick={() => navigate('purchases')} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 active:bg-gray-100">
                   <div className="flex items-center gap-2">
                     <AlertTriangle size={13} className="text-orange-500" />
                     <span className="text-xs text-gray-700">{m.name} stock running low</span>
@@ -197,7 +197,7 @@ export default function Dashboard({ navigate }) {
                 </button>
               ))}
               {laborOwed > 0 && (
-                <button onClick={() => navigate('finance')} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 active:bg-gray-100">
+                <button onClick={() => navigate('purchases')} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 active:bg-gray-100">
                   <div className="flex items-center gap-2">
                     <Users size={13} className="text-purple-500" />
                     <span className="text-xs text-gray-700">Labour balance due: {cur(laborOwed)}</span>
@@ -215,13 +215,13 @@ export default function Dashboard({ navigate }) {
           <div className="grid grid-cols-4 gap-2">
             {[
               { label: 'Production', icon: Hammer,       color: 'bg-amber-700',  page: 'production' },
-              { label: 'Material',   icon: Package,      color: 'bg-blue-600',   page: 'materials'  },
-              { label: 'Payment',    icon: TrendingUp,   color: 'bg-green-600',  page: 'finance'    },
-              { label: 'Expense',    icon: Receipt,      color: 'bg-red-500',    page: 'finance'    },
+              { label: 'Material',   icon: Package,      color: 'bg-blue-600',   page: 'purchases'  },
+              { label: 'Payment',    icon: TrendingUp,   color: 'bg-green-600',  page: 'sales'      },
+              { label: 'Expense',    icon: Receipt,      color: 'bg-red-500',    page: 'purchases'  },
               { label: 'Quote',      icon: FileText,     color: 'bg-purple-600', page: 'sales', sub: 'new_quote'    },
               { label: 'Invoice',    icon: DollarSign,   color: 'bg-teal-600',   page: 'sales', sub: 'new_invoice'  },
               { label: 'Enquiry',    icon: MessageSquare,color: 'bg-indigo-600', page: 'sales', sub: 'new_enquiry'  },
-              { label: 'Order',      icon: ShoppingBag,  color: 'bg-rose-600',   page: 'finance'    },
+              { label: 'Order',      icon: ShoppingBag,  color: 'bg-rose-600',   page: 'sales'      },
             ].map(({ label, icon: Icon, color, page, sub }) => (
               <button key={label} onClick={() => navigate(page, sub)}
                 className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">
@@ -288,7 +288,7 @@ export default function Dashboard({ navigate }) {
               <p className="text-sm font-semibold text-gray-700">Active Orders</p>
               {activeOrders.length > 0 && <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeOrders.length}</span>}
             </div>
-            <button onClick={() => navigate('finance')} className="text-amber-700 text-xs flex items-center gap-0.5">
+            <button onClick={() => navigate('sales')} className="text-amber-700 text-xs flex items-center gap-0.5">
               All <ChevronRight size={13} />
             </button>
           </div>
@@ -422,7 +422,7 @@ export default function Dashboard({ navigate }) {
                 <ArrowUpRight size={14} className="text-green-600" />
                 <p className="text-sm font-semibold text-gray-700">Recent Receipts</p>
               </div>
-              <button onClick={() => navigate('finance')} className="text-amber-700 text-xs flex items-center gap-0.5">
+              <button onClick={() => navigate('sales')} className="text-amber-700 text-xs flex items-center gap-0.5">
                 All <ChevronRight size={13} />
               </button>
             </div>

@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Production from './pages/Production';
 import Materials from './pages/Materials';
-import Finance from './pages/Finance';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Sales from './pages/Sales';
@@ -65,8 +64,7 @@ function AppShell() {
   const pages = {
     dashboard:  <Dashboard navigate={navigate} />,
     production: <Production navigate={navigate} />,
-    materials:  <Materials navigate={navigate} />,
-    finance:    <Finance navigate={navigate} />,
+    purchases:  <Materials navigate={navigate} />,
     sales:      <Sales initialAction={pendingAction} onActionConsumed={() => setPendingAction(null)} />,
     reports:    <Reports navigate={navigate} />,
     settings:   <Settings navigate={navigate} />,

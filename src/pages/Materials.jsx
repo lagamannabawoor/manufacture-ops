@@ -2,10 +2,11 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download, Share2, Filter } from 'lucide-react';
+import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download, Share2, Filter, Users, Receipt } from 'lucide-react';
 import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { LaborTab, ExpensesTab } from './Finance';
 
 function fmt(n) { return new Intl.NumberFormat('en-IN').format(n || 0); }
 function rp(n)  { return 'Rs.' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0); }
@@ -291,8 +292,8 @@ export default function Materials() {
   return (
     <div>
       <Header
-        title="Raw Materials"
-        subtitle="Stock & purchase tracking"
+        title="Purchases"
+        subtitle="Materials · Labour · Expenses"
         action={
           <button
             onClick={() => { setForm(freshForm()); setShowModal(true); }}
@@ -303,20 +304,27 @@ export default function Materials() {
         }
       />
 
-      <div className="px-4 py-4">
-        <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
-          {['stock', 'purchases'].map(tab => (
+      <div className="px-4 pt-3 pb-1">
+        <div className="flex bg-gray-100 rounded-xl p-1 mb-4 gap-0.5">
+          {[
+            { id: 'stock',     label: 'Stock'     },
+            { id: 'purchases', label: 'Purchases' },
+            { id: 'labour',    label: 'Labour'    },
+            { id: 'expenses',  label: 'Expenses'  },
+          ].map(tab => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${
-                activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
               }`}
             >
-              {tab === 'stock' ? 'Stock Levels' : 'Purchase History'}
+              {tab.label}
             </button>
           ))}
         </div>
+      </div>
+      <div className="px-4 pb-4">
 
         {activeTab === 'stock' && (() => {
           const stockItems = app.materialTypes.map(mat => {
@@ -491,6 +499,9 @@ export default function Materials() {
             )}
           </div>
         )}
+
+        {activeTab === 'labour' && <LaborTab />}
+        {activeTab === 'expenses' && <ExpensesTab />}
       </div>
 
       {showModal && (
