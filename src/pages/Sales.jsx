@@ -177,12 +177,6 @@ export default function Sales({ initialAction, onActionConsumed }) {
       <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : activeTab === 'orders' ? 'Sales Orders · Invoices' : 'Quotes'}
         action={canWrite && (
           <div className="flex gap-1">
-            {activeTab === 'orders' && (
-              <button onClick={() => openCreate('invoice')}
-                className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2" title="New Invoice">
-                <Receipt size={18} />
-              </button>
-            )}
             <button onClick={() => openCreate('quote')}
               className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2" title="New Quote">
               <FileText size={18} />
