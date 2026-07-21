@@ -248,8 +248,14 @@ export default function Materials() {
   }
 
   function save() {
-    if (!form.materialTypeId || !form.quantity) return alert('Material type and quantity are required.');
-    if (!form.billMode) return alert('Bill is mandatory. Please upload a bill photo or select \"No Bill (URD)\".');
+    if (!form.materialTypeId)  return alert('Material type is required.');
+    if (!form.quantity)        return alert('Quantity is required.');
+    if (!form.ratePerUnit)     return alert('Rate per unit is required.');
+    if (!form.totalAmount)     return alert('Total amount is required.');
+    if (!form.weightKgPerUnit) return alert('Weight per unit is required for stock tracking.');
+    if (!form.supplier)        return alert('Supplier name is required.');
+    if (!form.bankAccountId)   return alert('Payment account is required.');
+    if (!form.billMode) return alert('Bill is mandatory. Please upload a bill photo or select "No Bill (URD)".');
     app.addItem('materialPurchases', form);
     setForm({ ...freshForm(), date: form.date });
     setShowModal(false);
@@ -465,16 +471,16 @@ export default function Materials() {
                     <input type="number" className={inputCls} placeholder="0" value={form.quantity}
                       onChange={e => set('quantity', e.target.value)} min="0" />
                   </Field>
-                  <Field label={`Rate per ${unitLabel} (₹)`}>
+                  <Field label={`Rate per ${unitLabel} (₹)`} required>
                     <input type="number" className={inputCls} placeholder="0" value={form.ratePerUnit}
                       onChange={e => set('ratePerUnit', e.target.value)} min="0" />
                   </Field>
                 </div>
-                <Field label="Total Amount (₹) — auto-calculated">
+                <Field label="Total Amount (₹) — auto-calculated" required>
                   <input type="number" className={inputCls} placeholder="Auto-filled or enter manually" value={form.totalAmount}
                     onChange={e => set('totalAmount', e.target.value)} min="0" />
                 </Field>
-                <Field label="Weight per unit (kg) — mandatory for stock tracking">
+                <Field label="Weight per unit (kg)" required>
                   <div className="relative">
                     <input type="number" min="0" step="any"
                       className={`${inputCls} ${form.weightLocked ? 'bg-gray-50 text-gray-500 pr-20' : ''}`}
@@ -492,7 +498,7 @@ export default function Materials() {
               </>
             );
           })()}
-          <Field label="Supplier">
+          <Field label="Supplier" required>
             <input type="text" className={inputCls} placeholder="Supplier name..." value={form.supplier}
               onChange={e => set('supplier', e.target.value)} />
           </Field>
@@ -500,7 +506,7 @@ export default function Materials() {
             <input type="text" className={inputCls} value={form.billNumber}
               onChange={e => set('billNumber', e.target.value)} />
           </Field>
-          <Field label="Payment Account">
+          <Field label="Payment Account" required>
             <select className={selectCls} value={form.bankAccountId} onChange={e => set('bankAccountId', e.target.value)}>
               <option value="">Select account...</option>
               {app.bankAccounts.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
