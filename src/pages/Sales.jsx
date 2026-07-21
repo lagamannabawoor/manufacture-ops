@@ -174,9 +174,15 @@ export default function Sales({ initialAction, onActionConsumed }) {
 
   return (
     <div>
-      <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : activeTab === 'orders' ? 'Orders' : 'Quotes'}
+      <Header title="Sales" subtitle={activeTab === 'enquiries' ? 'Enquiries' : activeTab === 'orders' ? 'Orders · Invoices' : 'Quotes'}
         action={canWrite && (
           <div className="flex gap-1">
+            {activeTab === 'orders' && (
+              <button onClick={() => openCreate('invoice')}
+                className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2" title="New Invoice">
+                <Receipt size={18} />
+              </button>
+            )}
             <button onClick={() => openCreate('quote')}
               className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2" title="New Quote">
               <FileText size={18} />
@@ -199,6 +205,60 @@ export default function Sales({ initialAction, onActionConsumed }) {
 
       {activeTab === 'enquiries' && <EnquiriesTab doAdd={pendingEnqAdd} onAddDone={() => setPendingEnqAdd(false)} />}
       {activeTab === 'orders' && <OrdersTab />}
+
+      {/* Tax Invoices section — shown under Sales/Orders tab */}
+      {activeTab === 'orders' && (
+        <div className="px-4 pb-4">
+          <div className="flex items-center justify-between mb-3 mt-1">
+            <div className="flex items-center gap-2">
+              <Receipt size={14} className="text-teal-600" />
+              <p className="text-sm font-semibold text-gray-700">Tax Invoices</p>
+              {invoices.length > 0 && <span className="bg-teal-100 text-teal-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{invoices.length}</span>}
+            </div>
+            {canWrite && (
+              <button onClick={() => openCreate('invoice')}
+                className="flex items-center gap-1 bg-teal-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">
+                <Plus size={13} /> New Invoice
+              </button>
+            )}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Filter size={12} className="text-amber-700" />
+              <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Filter</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+              <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+              <select className={`${selectCls} col-span-2`} value={filterIStatus} onChange={e => setFilterIStatus(e.target.value)}>
+                <option value="">All Statuses</option>
+                {Object.entries(INVOICE_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+          </div>
+          {invoices.length === 0 ? (
+            <EmptyCard icon="🧾" label="No invoices in this range" sub={'Tap "New Invoice" to create one'} />
+          ) : (
+            <div className="space-y-3">
+              {invoices.map(inv => {
+                const { total } = calcDoc(inv.items||[], inv.taxType, inv.taxRate, inv.discountValue, inv.discountType);
+                const paid = Number(inv.paidAmount) || 0;
+                const balance = Math.max(0, total - paid);
+                return (
+                  <DocCard key={inv.id} docNo={inv.invoiceNumber} customerName={inv.customerName}
+                    date={inv.date} statusMap={INVOICE_STATUS} status={inv.status}
+                    totalLabel={cur(total)}
+                    subLabel={balance > 0 ? `Balance: ${cur(balance)}` : 'Fully Paid'}
+                    onView={() => setViewing({ doc: inv, type: 'invoice' })}
+                    onEdit={canWrite ? () => openEdit('invoice', inv) : null}
+                    onDelete={canWrite ? () => { if (confirm(`Delete ${inv.invoiceNumber}?`)) app.deleteItem('invoices', inv.id); } : null}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filter bar — quotes only */}
       {activeTab === 'quotes' && <div className="px-4 pt-3">
