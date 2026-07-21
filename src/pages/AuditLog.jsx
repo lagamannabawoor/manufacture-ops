@@ -100,8 +100,9 @@ export default function AuditLog({ onBack }) {
   }
 
   function clearLog() {
-    if (!window.confirm(`Clear all ${auditLog.length} audit log entries? This cannot be undone.`)) return;
-    setList('auditLog', []);
+    if (!window.confirm(`Clear ${filtered.length} visible log entr${filtered.length !== 1 ? 'ies' : 'y'}? This cannot be undone.`)) return;
+    const filteredIds = new Set(filtered.map(e => e.id));
+    setList('auditLog', auditLog.filter(e => !filteredIds.has(e.id)));
   }
 
   const rangeLabel = datePreset === 'all'
@@ -116,7 +117,7 @@ export default function AuditLog({ onBack }) {
         title="Audit Log"
         subtitle={`${filtered.length} of ${auditLog.length} events`}
         onBack={onBack}
-        action={isAdmin && auditLog.length > 0 ? (
+        action={isAdmin && filtered.length > 0 ? (
           <button onClick={clearLog}
             className="flex flex-col items-center gap-0.5 bg-white/20 hover:bg-red-500/30 text-white rounded-xl px-2.5 py-1.5 transition-colors">
             <Trash2 size={15} />
