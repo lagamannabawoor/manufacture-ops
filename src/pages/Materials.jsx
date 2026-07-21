@@ -308,79 +308,72 @@ export default function Materials() {
           ))}
         </div>
 
-        {activeTab === 'stock' && (
-          <div className="space-y-3">
-            {app.materialTypes.map(mat => {
-              const kgPerUnit = Number(mat.weightKgPerUnit || 0);
-              const purchased = app.materialPurchases
-                .filter(p => p.materialTypeId === mat.id)
-                .reduce((s, p) => s + Number(p.quantity || 0), 0);
-              const consumedKg = app.productionEntries
-                .flatMap(e => e.materialsUsed || [])
-                .filter(mu => mu.materialTypeId === mat.id)
-                .reduce((s, mu) => s + Number(mu.kgUsed || 0), 0);
-              const purchasedKg = kgPerUnit > 0 ? purchased * kgPerUnit : 0;
-              const stockKg = purchasedKg - consumedKg;
-              const useKg = kgPerUnit > 0;
-              const fmtKg = (kg) => kg >= 1000
-                ? `${(kg / 1000).toFixed(2)} T`
-                : `${kg.toFixed(1)} kg`;
-              const stockDisplay = useKg ? fmtKg(stockKg) : `${fmt(purchased)} ${mat.unit}`;
-              const pct = purchasedKg > 0 ? Math.min(100, Math.max(0, (stockKg / purchasedKg) * 100)) : 0;
-              return (
-                <div key={mat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                        <Package size={18} className="text-amber-500" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-800">{mat.name}</p>
-                        <p className="text-xs text-gray-400">{purchased} {mat.unit} purchased{kgPerUnit > 0 ? ` · ${kgPerUnit}kg/${mat.unit.replace(/s$/, '')}` : ''}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-xl font-bold ${(!useKg && purchased > 0) || (useKg && stockKg > 0) ? 'text-gray-800' : 'text-red-600'}`}>
-                        {stockDisplay}
-                      </p>
-                      <p className="text-xs text-gray-400">in stock</p>
-                    </div>
-                  </div>
+        {activeTab === 'stock' && (() => {
+          const stockItems = app.materialTypes.map(mat => {
+            const kgPerUnit = Number(mat.weightKgPerUnit || 0);
+            const unit = (mat.unit || '').toLowerCase();
+            const purchased = app.materialPurchases
+              .filter(p => p.materialTypeId === mat.id)
+              .reduce((s, p) => s + Number(p.quantity || 0), 0);
+            const consumedQty = app.productionEntries
+              .flatMap(e => e.materialsUsed || [])
+              .filter(mu => mu.materialTypeId === mat.id)
+              .reduce((s, mu) => s + Number(mu.qtyUsed || 0), 0);
+            const consumedKg = app.productionEntries
+              .flatMap(e => e.materialsUsed || [])
+              .filter(mu => mu.materialTypeId === mat.id)
+              .reduce((s, mu) => s + Number(mu.kgUsed || 0), 0);
+
+            let stockLabel, stockVal, pct = 0;
+            if (unit === 'trucks' && kgPerUnit > 0) {
+              const purchasedT = (purchased * kgPerUnit) / 1000;
+              const consumedT = consumedKg / 1000;
+              const availT = Math.max(0, purchasedT - consumedT);
+              stockLabel = `${availT.toFixed(2)} T`;
+              stockVal = availT;
+              pct = purchasedT > 0 ? Math.min(100, (availT / purchasedT) * 100) : 0;
+            } else if (unit === 'bags') {
+              const avail = Math.max(0, purchased - consumedQty);
+              stockLabel = `${fmt(Math.round(avail))} bags`;
+              stockVal = avail;
+              pct = purchased > 0 ? Math.min(100, (avail / purchased) * 100) : 0;
+            } else if (unit === 'liters' || unit === 'litres') {
+              const avail = Math.max(0, purchased - consumedQty);
+              stockLabel = `${fmt(avail)} L`;
+              stockVal = avail;
+              pct = purchased > 0 ? Math.min(100, (avail / purchased) * 100) : 0;
+            } else if (unit === 'trucks') {
+              const avail = Math.max(0, purchased - consumedQty);
+              stockLabel = `${fmt(avail)} trucks`;
+              stockVal = avail;
+              pct = purchased > 0 ? Math.min(100, (avail / purchased) * 100) : 0;
+            } else {
+              const avail = Math.max(0, purchased - consumedQty);
+              stockLabel = `${avail >= 1000 ? (avail / 1000).toFixed(2) + ' T' : fmt(avail) + ' ' + mat.unit}`;
+              stockVal = avail;
+              pct = purchased > 0 ? Math.min(100, (avail / purchased) * 100) : 0;
+            }
+            return { mat, stockLabel, stockVal, pct, purchased };
+          });
+
+          return (
+            <div className="grid grid-cols-2 gap-2">
+              {stockItems.map(({ mat, stockLabel, stockVal, pct, purchased }) => (
+                <div key={mat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+                  <p className="text-xs font-semibold text-gray-600 truncate mb-1">{mat.name}</p>
+                  <p className={`text-lg font-bold leading-tight ${stockVal > 0 ? 'text-gray-800' : 'text-red-500'}`}>{stockLabel}</p>
+                  <p className="text-[10px] text-gray-400 mb-1.5">available · {purchased} {mat.unit} bought</p>
                   {purchased > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-50">
-                      <div className="grid grid-cols-3 gap-2 mb-2 text-center">
-                        {useKg && (
-                          <div>
-                            <p className="text-xs font-semibold text-green-700">{fmtKg(purchasedKg)}</p>
-                            <p className="text-[10px] text-gray-400">Purchased</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-xs font-semibold text-red-600">{consumedKg > 0 ? fmtKg(consumedKg) : '—'}</p>
-                          <p className="text-[10px] text-gray-400">Used</p>
-                        </div>
-                        {useKg && (
-                          <div>
-                            <p className={`text-xs font-semibold ${stockKg > 0 ? 'text-blue-700' : 'text-red-500'}`}>{fmtKg(Math.max(0, stockKg))}</p>
-                            <p className="text-[10px] text-gray-400">Available</p>
-                          </div>
-                        )}
-                      </div>
-                      {useKg && (
-                        <>
-                          <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-amber-500 h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                          <p className="text-xs text-gray-400 mt-1">{Math.round(pct)}% remaining</p>
-                        </>
-                      )}
+                    <div className="w-full bg-gray-100 rounded-full h-1">
+                      <div className={`h-1 rounded-full transition-all ${stockVal > 0 ? 'bg-amber-500' : 'bg-red-400'}`}
+                        style={{ width: `${pct}%` }} />
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
 
         {activeTab === 'purchases' && (
           <div>
