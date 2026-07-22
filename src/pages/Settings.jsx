@@ -23,7 +23,7 @@ export default function Settings() {
     { id: 'productCategories', label: 'Product Categories', icon: Layers, color: 'text-indigo-500 bg-indigo-50' },
     { id: 'products', label: 'Products', icon: Package, color: 'text-green-500 bg-green-50' },
     { id: 'materialTypes', label: 'Material Types', icon: Package, color: 'text-amber-500 bg-amber-50' },
-    { id: 'laborGroups', label: 'Labor Groups', icon: Users, color: 'text-purple-500 bg-purple-50' },
+    { id: 'laborGroups', label: 'Production Team', icon: Users, color: 'text-purple-500 bg-purple-50' },
     { id: 'bankAccounts', label: 'Bank Accounts', icon: CreditCard, color: 'text-teal-500 bg-teal-50' },
     { id: 'expenseCategories', label: 'Expense Categories', icon: Tag, color: 'text-red-500 bg-red-50' },
   ];
@@ -886,7 +886,7 @@ const RETAIN_OPTIONS = [
   { key: 'users',        label: 'User accounts & roles',              desc: 'All user logins, passwords and permissions' },
   { key: 'reportEmails', label: 'Report email recipients',             desc: 'Daily report mailing list' },
   { key: 'companyInfo',  label: 'Company info & address',              desc: 'Name, GSTIN, address, logo & signature' },
-  { key: 'masterData',   label: 'Master data (Factories, Products, Materials, Labour Groups, Bank Accounts, Expense Categories)', desc: 'Keep your custom master setup — uncheck to reset back to factory defaults' },
+  { key: 'masterData',   label: 'Master data (Factories, Products, Materials, Production Team, Bank Accounts, Expense Categories)', desc: 'Keep your custom master setup — uncheck to reset back to factory defaults' },
 ];
 
 function ResetSection() {
@@ -940,7 +940,7 @@ function ResetSection() {
             <p className="text-[10px] text-red-600 font-semibold mb-1">Will be deleted / reset:</p>
             <p className="text-[10px] text-red-500 leading-relaxed">
               Production entries · Material purchases · Labour payments · Expenses · Orders · Invoices · Quotes · Enquiries · Audit log · Order dispatches & payments
-              {!retain.masterData && ' · Factories · Product categories · Products · Material types · Labour groups · Bank accounts · Expense categories (→ factory defaults)'}
+              {!retain.masterData && ' · Factories · Product categories · Products · Material types · Production teams · Bank accounts · Expense categories (→ factory defaults)'}
             </p>
           </div>
 
@@ -1150,7 +1150,7 @@ const PREVIEW_KEYS = [
   ['factories',          'Factories'],
   ['productCategories',  'Product Categories'],
   ['materialTypes',      'Material Types'],
-  ['laborGroups',        'Labour Groups'],
+  ['laborGroups',        'Production Team'],
   ['bankAccounts',       'Bank Accounts'],
   ['expenseCategories',  'Expense Categories'],
   ['users',              'Users'],

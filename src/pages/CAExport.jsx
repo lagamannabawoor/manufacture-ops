@@ -500,7 +500,7 @@ export default function CAExport({ onClose }) {
       const csvQuotes = toCSV(['Quote No','Date','Customer','Status','Valid Until','Total'], quoteRows);
       const csvRecv   = toCSV(['Customer','Pending Invoices','Balance Due'], recvRows);
       const csvMat    = toCSV(['Date','Material','Quantity','Supplier','Bill No','Bill Type','Amount'], matRows);
-      const csvLabor  = toCSV(['Date','Labour Group','Payment Type','Bank Account','Notes','Amount'], laborRows);
+      const csvLabor  = toCSV(['Date','Production Team','Payment Type','Bank Account','Notes','Amount'], laborRows);
       const csvExp    = toCSV(['Date','Category','Description','GST Amount','Bank Account','Bill Type','Amount'], expRows);
       const csvProd   = toCSV(['Date','Factory','Product','Quantity (pcs)','Cement (bags)','Notes'], prodRows);
       const csvBank   = toCSV(['Account','Bank','Type','Total Income','Total Outflow','Net'], bankRows);

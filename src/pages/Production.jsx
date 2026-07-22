@@ -45,7 +45,7 @@ export default function Production({ initialAction, onActionConsumed }) {
     if (!form.productId)    return alert('Product is required.');
     if (!form.factoryId)    return alert('Factory is required.');
     if (!form.quantity)     return alert('Quantity is required.');
-    if (!form.laborGroupId) return alert('Labour group is required.');
+    if (!form.laborGroupId) return alert('Production Team is required.');
     const product = app.products.find(p => p.id === form.productId);
     const qty = Number(form.quantity);
     const materialsUsed = (product?.bom || []).map(b => ({
@@ -144,7 +144,7 @@ export default function Production({ initialAction, onActionConsumed }) {
               <Field label="Quantity (units)" required>
                 <input type="number" className={inputCls} placeholder="0" value={form.quantity} onChange={e => set('quantity', e.target.value)} min="0" />
               </Field>
-              <Field label="Labour Group" required>
+              <Field label="Production Team" required>
                 <select className={selectCls} value={form.laborGroupId} onChange={e => set('laborGroupId', e.target.value)}>
                   <option value="">Select group…</option>
                   {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -307,7 +307,7 @@ export default function Production({ initialAction, onActionConsumed }) {
                   {app.productCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <select className={selectCls} value={filterLabour} onChange={e => setFilterLabour(e.target.value)}>
-                  <option value="">All Labour Groups</option>
+                  <option value="">All Production Teams</option>
                   {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
                 <select className={selectCls} value={filterMaterial} onChange={e => setFilterMaterial(e.target.value)}>
@@ -422,7 +422,7 @@ export default function Production({ initialAction, onActionConsumed }) {
               <input type="number" className={inputCls} placeholder="0" value={form.quantity}
                 onChange={e => set('quantity', e.target.value)} min="0" />
             </Field>
-            <Field label="Labour Group" required>
+            <Field label="Production Team" required>
               <select className={selectCls} value={form.laborGroupId} onChange={e => set('laborGroupId', e.target.value)}>
                 <option value="">Select group…</option>
                 {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}

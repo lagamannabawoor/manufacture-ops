@@ -530,7 +530,7 @@ export default function Reports() {
 
         {/* ── LABOUR SUMMARY ── */}
         {labourBalances.length > 0 && (
-          <CollapsibleSection title="Labour Summary" icon={<Users size={16} className="text-purple-500" />} defaultOpen={false}>
+          <CollapsibleSection title="Production Team Summary" icon={<Users size={16} className="text-purple-500" />} defaultOpen={false}>
             {labourBalances.map(g => (
               <div key={g.id} className="py-2.5 border-b border-gray-50 last:border-0">
                 <div className="flex justify-between items-center">
@@ -559,7 +559,7 @@ export default function Reports() {
           <div className="mt-2 pt-2 border-t border-gray-50">
             <p className="text-[11px] font-semibold text-gray-400 mb-2 uppercase tracking-wide">Outflows</p>
             <Row label="Material Purchases" value={cur(totalMaterialCost)} valueClass="text-red-500" />
-            <Row label="Labour Payments" value={cur(totalLaborCost)} valueClass="text-red-500" />
+            <Row label="Production Team Payments" value={cur(totalLaborCost)} valueClass="text-red-500" />
             <Row label="Other Expenses" value={cur(totalExpenses)} valueClass="text-red-500" />
             <div className="flex justify-between items-center pt-2 border-t border-gray-100 mt-2">
               <span className="text-sm font-bold text-gray-700">Total Outflow</span>

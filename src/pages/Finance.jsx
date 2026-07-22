@@ -163,7 +163,7 @@ function buildFinancePDF(type, entry, meta, ci) {
     if (entry.hasGST && entry.gstAmount) rows.push(['GST Amount', rp(entry.gstAmount)]);
     if (meta.accountName) rows.push(['Payment Via', meta.accountName]);
   } else if (type === 'labor') {
-    rows.push(['Labor Group', meta.groupName||'—']);
+    rows.push(['Production Team', meta.groupName||'—']);
     rows.push(['Payment Type', (entry.paymentType||'regular').charAt(0).toUpperCase()+(entry.paymentType||'regular').slice(1)]);
     rows.push(['Amount', rp(entry.amount)]);
     if (meta.accountName) rows.push(['Payment Via', meta.accountName]);
@@ -437,11 +437,11 @@ export default function Finance() {
   const tabs = [
     { id: 'orders', label: 'Orders', icon: ShoppingBag },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
-    { id: 'labor', label: 'Labour', icon: Users },
+    { id: 'labor', label: 'Production Team', icon: Users },
   ];
   return (
     <div>
-      <Header title="Finance" subtitle="Orders · Expenses · Labour" />
+      <Header title="Finance" subtitle="Orders · Expenses · Production Team" />
       <div className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 pt-2 pb-0">
         <div className="flex gap-1">
           {tabs.map(({ id, label, icon: Icon }) => (
@@ -518,7 +518,7 @@ export function LaborTab({ triggerAdd, onTriggerConsumed }) {
   return (
     <div className="px-4 py-4">
       <div className="flex justify-between items-center mb-3">
-        <h2 className="text-sm font-semibold text-gray-700">Labour Balance Sheet</h2>
+        <h2 className="text-sm font-semibold text-gray-700">Production Team Balance Sheet</h2>
         <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="flex items-center gap-1 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">
           <Plus size={14} /> Add Payment
         </button>
@@ -632,18 +632,18 @@ export function LaborTab({ triggerAdd, onTriggerConsumed }) {
 
       {viewing && (
         <ReceiptViewer
-          title="Labour Payment Voucher"
+          title="Production Team Payment Voucher"
           busy={vBusy}
           onClose={() => setViewing(null)}
           onDownload={async () => { setVBusy(true); try { const pdf = buildFinancePDF('labor', viewing.p, { groupName: viewing.group?.name, accountName: viewing.account?.name }, app.companyInfo||{}); await shareOrDownloadPDF(pdf, `Labour-${viewing.p.date}-${(viewing.p.id||'').slice(-5)}.pdf`); } finally { setVBusy(false); } }}
           onShare={async () => { setVBusy(true); try { const pdf = buildFinancePDF('labor', viewing.p, { groupName: viewing.group?.name, accountName: viewing.account?.name }, app.companyInfo||{}); await shareOrDownloadPDF(pdf, `Labour-${viewing.p.date}.pdf`); } finally { setVBusy(false); } }}
         >
           <ReceiptHTML
-            docTitle="Labour Payment Voucher"
+            docTitle="Production Team Payment Voucher"
             docColor="bg-indigo-100 text-indigo-800"
             rows={[
               ['Date', fmtDate(viewing.p.date)],
-              ['Labour Group', viewing.group?.name],
+              ['Production Team', viewing.group?.name],
               ['Payment Type', (viewing.p.paymentType||'').replace(/^\w/, c => c.toUpperCase())],
               ['Bank Account', viewing.account?.name],
               ['Notes', viewing.p.notes],
@@ -657,9 +657,9 @@ export function LaborTab({ triggerAdd, onTriggerConsumed }) {
       )}
 
       {showModal && (
-        <Modal title="Add Labor Payment" onClose={() => setShowModal(false)}>
+        <Modal title="Add Production Team Payment" onClose={() => setShowModal(false)}>
           <Field label="Date" required><input type="date" className={inputCls} value={form.date} onChange={e => set('date', e.target.value)} /></Field>
-          <Field label="Labor Group" required>
+          <Field label="Production Team" required>
             <select className={selectCls} value={form.laborGroupId} onChange={e => set('laborGroupId', e.target.value)}>
               <option value="">Select group...</option>
               {app.laborGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}

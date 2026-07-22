@@ -201,7 +201,7 @@ export default function Dashboard({ navigate }) {
                 <button onClick={() => navigate('purchases')} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 active:bg-gray-100">
                   <div className="flex items-center gap-2">
                     <Users size={13} className="text-purple-500" />
-                    <span className="text-xs text-gray-700">Labour balance due: {cur(laborOwed)}</span>
+                    <span className="text-xs text-gray-700">Production Team balance due: {cur(laborOwed)}</span>
                   </div>
                   <ChevronRight size={13} className="text-gray-400" />
                 </button>
@@ -221,7 +221,7 @@ export default function Dashboard({ navigate }) {
               { label: 'Quote',      icon: FileText,      color: 'bg-purple-600', page: 'sales',      sub: 'new_quote'         },
               { label: 'Enquiry',    icon: MessageSquare, color: 'bg-indigo-600', page: 'sales',      sub: 'new_enquiry'       },
               { label: 'Sales Order',icon: ShoppingBag,   color: 'bg-rose-600',   page: 'sales',      sub: 'new_order'         },
-              { label: 'Labour Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases',  sub: 'tab_labour_add'    },
+              { label: 'Production Team Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases',  sub: 'tab_labour_add'    },
             ].map(({ label, icon: Icon, color, page, sub }) => (
               <button key={label} onClick={() => navigate(page, sub)}
                 className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">
@@ -270,7 +270,7 @@ export default function Dashboard({ navigate }) {
               {netToday >= 0 ? '+' : ''}{cur(netToday)}
             </p>
             <div className="grid grid-cols-3 gap-1 mt-2 pt-2 border-t border-gray-200 text-center">
-              {[['Income', todayIncome, 'text-green-600'], ['Labour', todayLaborCost, 'text-red-500'], ['Materials', todayMatCost, 'text-red-500']].map(([l, v, cls]) => (
+              {[['Income', todayIncome, 'text-green-600'], ['Production Team', todayLaborCost, 'text-red-500'], ['Materials', todayMatCost, 'text-red-500']].map(([l, v, cls]) => (
                 <div key={l}>
                   <p className="text-[10px] text-gray-400">{l}</p>
                   <p className={`text-xs font-bold ${cls}`}>{cur(v)}</p>
