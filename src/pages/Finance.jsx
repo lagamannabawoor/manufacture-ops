@@ -513,7 +513,7 @@ export function LaborTab({ triggerAdd, onTriggerConsumed }) {
     const balance = owed - paid;
     const status = balance < -0.5 ? 'overpaid' : balance > 0.5 ? 'pending' : 'settled';
     return { ...g, owed, paid, advance, balance, status };
-  });
+  }).filter(g => g.owed > 0 || g.paid > 0);
 
   return (
     <div className="px-4 py-4">
