@@ -306,7 +306,7 @@ export default function Materials({ initialAction, onActionConsumed }) {
     <div>
       <Header
         title="Purchases"
-        subtitle="Materials · Labour · Expenses"
+        subtitle="Materials · Production Team · Expenses"
         action={
           <button
             onClick={() => { setForm(freshForm()); setShowModal(true); }}
@@ -323,7 +323,7 @@ export default function Materials({ initialAction, onActionConsumed }) {
           {[
             { id: 'stock',     label: 'Stock'     },
             { id: 'purchases', label: 'Purchases' },
-            { id: 'labour',    label: 'Labour'    },
+            { id: 'labour',    label: 'Production Team'    },
             { id: 'expenses',  label: 'Expenses'  },
           ].map(tab => (
             <button
