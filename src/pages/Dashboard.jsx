@@ -5,7 +5,7 @@ import {
   Hammer, ChevronRight, CalendarDays, Building2, AlertTriangle,
   ShoppingBag, Users, Receipt, BarChart2, ArrowUpRight, ArrowDownRight,
   Boxes, FlaskConical, FileText, MessageSquare, Bell, Truck,
-  CheckCircle2, Clock, CircleDollarSign, Factory,
+  CheckCircle2, Clock, CircleDollarSign, Factory, Wrench,
 } from 'lucide-react';
 import { fmtDate, todayISO } from '../utils/date';
 import UrbanmudLogo from '../components/UrbanmudLogo';
@@ -223,6 +223,7 @@ export default function Dashboard({ navigate }) {
               { label: 'Enquiry',    icon: MessageSquare, color: 'bg-indigo-600', page: 'sales',      sub: 'new_enquiry'       },
               { label: 'Sales Order',icon: ShoppingBag,   color: 'bg-rose-600',   page: 'sales',      sub: 'new_order'         },
               { label: 'Production Team Pay', icon: Users,         color: 'bg-green-600',  page: 'purchases',  sub: 'tab_labour_add'    },
+              { label: 'Install Pay',          icon: Wrench,        color: 'bg-teal-600',   page: 'purchases',  sub: 'tab_installation'  },
             ].map(({ label, icon: Icon, color, page, sub }) => (
               <button key={label} onClick={() => navigate(page, sub)}
                 className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">

@@ -173,7 +173,7 @@ export default function Materials({ initialAction, onActionConsumed }) {
     else if (initialAction === 'tab_labour_add')  { setActiveTab('labour');   setTriggerLabourAdd(true);   onActionConsumed?.(); }
     else if (initialAction === 'tab_expenses_add'){ setActiveTab('expenses');  setTriggerExpenseAdd(true);  onActionConsumed?.(); }
     else {
-      const map = { tab_stock: 'stock', tab_purchases: 'purchases', tab_labour: 'labour', tab_expenses: 'expenses' };
+      const map = { tab_stock: 'stock', tab_purchases: 'purchases', tab_labour: 'labour', tab_installation: 'installation', tab_expenses: 'expenses' };
       if (map[initialAction]) { setActiveTab(map[initialAction]); onActionConsumed?.(); }
     }
   }, [initialAction]);
