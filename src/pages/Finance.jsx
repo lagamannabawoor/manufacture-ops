@@ -756,6 +756,17 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
   const [vBusy, setVBusy] = useState(false);
   const [viewingConsolidated, setViewingConsolidated] = useState(null);
   const [consolidatedBusy, setConsolidatedBusy] = useState(false);
+  const [showEwayModal, setShowEwayModal] = useState(false);
+  const [ewayOrder, setEwayOrder] = useState(null);
+  const emptyEway = { ewbNo: '', ewbDate: todayISO(), validUntil: '', hsnCode: '', transportMode: 'road', vehicleNo: '', transporterName: '', transporterGSTIN: '', distance: '' };
+  const [ewayForm, setEwayForm] = useState(emptyEway);
+  function setEway(k, v) { setEwayForm(f => ({ ...f, [k]: v })); }
+  function openEway(order) { setEwayOrder(order); setEwayForm(order.ewayBill ? { ...emptyEway, ...order.ewayBill } : { ...emptyEway }); setShowEwayModal(true); }
+  function saveEway() {
+    if (!ewayForm.ewbNo.trim()) return alert('E-Way Bill No. is required.');
+    app.updateItem('orders', ewayOrder.id, { ewayBill: ewayForm });
+    setShowEwayModal(false); setEwayOrder(null);
+  }
   const sorted = [...app.orders]
     .filter(o => {
       const d = o.deliveryDate || todayISO();
@@ -815,6 +826,9 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
                   <div>
                     <div className="flex items-center flex-wrap gap-1.5 mb-1">
                       {order.orderNumber && <span className="text-xs text-gray-400">#{order.orderNumber}</span>}
+                      {order.includeGST && order.ewayBill?.ewbNo && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded-full border border-purple-100 font-semibold">EWB ✓</span>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[effectiveStatus] || 'bg-gray-100 text-gray-600'}`}>
                         {effectiveStatus.replace(/_/g, ' ')}
                       </span>
@@ -893,6 +907,14 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
                       className="flex items-center gap-1 bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-teal-200"
                     >
                       <FileText size={12} /> Invoice
+                    </button>
+                  )}
+                  {order.includeGST && (
+                    <button
+                      onClick={() => openEway(order)}
+                      className="flex items-center gap-1 bg-purple-50 text-purple-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-purple-200"
+                    >
+                      <FileText size={12} /> {order.ewayBill?.ewbNo ? 'Edit EWB' : 'E-Way Bill'}
                     </button>
                   )}
                   <button onClick={() => { if (confirm('Delete order?')) app.deleteItem('orders', order.id); }} className="ml-auto text-gray-300 hover:text-red-400 p-1">
@@ -978,6 +1000,55 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
           </ReceiptViewer>
         );
       })()}
+
+      {showEwayModal && ewayOrder && (
+        <Modal title={`E-Way Bill — ${ewayOrder.orderNumber || ewayOrder.customerName}`} onClose={() => { setShowEwayModal(false); setEwayOrder(null); }}>
+          <div className="bg-purple-50 border border-purple-100 rounded-xl px-3 py-2.5 mb-4">
+            <p className="text-xs font-semibold text-purple-800 mb-0.5">Order: {ewayOrder.customerName}</p>
+            <p className="text-xs text-purple-600">GST ({ewayOrder.gstRate}%) · Order Value: ₹{fmt(ewayOrder.totalAmount)}</p>
+            <p className="text-[11px] text-purple-500 mt-1">Generate the EWB on the GST portal first, then enter the details here.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="EWB Number" required>
+              <input className={inputCls} placeholder="12-digit EWB No." value={ewayForm.ewbNo} onChange={e => setEway('ewbNo', e.target.value)} />
+            </Field>
+            <Field label="EWB Date" required>
+              <input type="date" className={inputCls} value={ewayForm.ewbDate} onChange={e => setEway('ewbDate', e.target.value)} />
+            </Field>
+            <Field label="Valid Until">
+              <input type="date" className={inputCls} value={ewayForm.validUntil} onChange={e => setEway('validUntil', e.target.value)} />
+            </Field>
+            <Field label="HSN Code">
+              <input className={inputCls} placeholder="e.g. 6810" value={ewayForm.hsnCode} onChange={e => setEway('hsnCode', e.target.value)} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Transport Mode">
+              <select className={selectCls} value={ewayForm.transportMode} onChange={e => setEway('transportMode', e.target.value)}>
+                <option value="road">Road</option>
+                <option value="rail">Rail</option>
+                <option value="air">Air</option>
+                <option value="ship">Ship</option>
+              </select>
+            </Field>
+            <Field label="Distance (km)">
+              <input type="number" className={inputCls} placeholder="e.g. 50" value={ewayForm.distance} onChange={e => setEway('distance', e.target.value)} min="0" />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Vehicle No.">
+              <input className={inputCls} placeholder="KA01AB1234" value={ewayForm.vehicleNo} onChange={e => setEway('vehicleNo', e.target.value.toUpperCase())} />
+            </Field>
+            <Field label="Transporter GSTIN">
+              <input className={inputCls} placeholder="22AAAAA..." value={ewayForm.transporterGSTIN} onChange={e => setEway('transporterGSTIN', e.target.value.toUpperCase())} />
+            </Field>
+          </div>
+          <Field label="Transporter Name">
+            <input className={inputCls} placeholder="Transport company name" value={ewayForm.transporterName} onChange={e => setEway('transporterName', e.target.value)} />
+          </Field>
+          <SaveBtn onClick={saveEway} label="Save E-Way Bill" />
+        </Modal>
+      )}
 
       {showOrderModal && (
         <Modal title="Add New Order" onClose={() => setShowOrderModal(false)}>
@@ -1202,6 +1273,33 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
                         </tr>
                       </tfoot>
                     </table>
+                  </div>
+                </div>
+              )}
+              {/* E-Way Bill */}
+              {co.ewayBill?.ewbNo && (
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <div className="w-1 h-4 bg-purple-600 rounded-full" />
+                    <p className="text-xs font-bold text-purple-700 uppercase tracking-wide">E-Way Bill</p>
+                    <span className="ml-auto text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{co.ewayBill.ewbNo}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    {[
+                      ['EWB Date', fmtDate(co.ewayBill.ewbDate)],
+                      co.ewayBill.validUntil ? ['Valid Until', fmtDate(co.ewayBill.validUntil)] : null,
+                      co.ewayBill.hsnCode ? ['HSN Code', co.ewayBill.hsnCode] : null,
+                      co.ewayBill.transportMode ? ['Mode', co.ewayBill.transportMode.toUpperCase()] : null,
+                      co.ewayBill.vehicleNo ? ['Vehicle No.', co.ewayBill.vehicleNo] : null,
+                      co.ewayBill.distance ? ['Distance', co.ewayBill.distance + ' km'] : null,
+                      co.ewayBill.transporterName ? ['Transporter', co.ewayBill.transporterName] : null,
+                      co.ewayBill.transporterGSTIN ? ['Transporter GSTIN', co.ewayBill.transporterGSTIN] : null,
+                    ].filter(Boolean).map(([l, v], i) => (
+                      <div key={i}>
+                        <p className="text-[10px] text-gray-400 uppercase">{l}</p>
+                        <p className="text-xs font-semibold text-gray-700">{v}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
