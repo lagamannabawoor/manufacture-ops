@@ -697,7 +697,7 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
   }, [triggerAdd]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [orderForm, setOrderForm] = useState(() => ({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' }));
+  const [orderForm, setOrderForm] = useState(() => ({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', includeGST: false, gstRate: '18', deliveryDate: '', notes: '' }));
   const [payForm, setPayForm] = useState({ date: todayISO(), orderId: '', amount: '', direction: 'received', bankAccountId: '', notes: '' });
   const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
@@ -715,9 +715,11 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
 
   function saveOrder() {
     if (!orderForm.customerName || !orderForm.productId || !orderForm.quantity) return alert('Customer, product, and quantity required.');
-    const total = Number(orderForm.quantity) * Number(orderForm.unitPrice || 0);
-    app.addItem('orders', { ...orderForm, totalAmount: total, status: 'pending' });
-    setOrderForm({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', deliveryDate: '', notes: '' });
+    const baseTotal = Number(orderForm.quantity) * Number(orderForm.unitPrice || 0);
+    const gstAmt = orderForm.includeGST ? Number((baseTotal * Number(orderForm.gstRate) / 100).toFixed(2)) : 0;
+    const total = Number((baseTotal + gstAmt).toFixed(2));
+    app.addItem('orders', { ...orderForm, totalAmount: total, gstAmount: gstAmt, taxableAmount: baseTotal, status: 'pending' });
+    setOrderForm({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', includeGST: false, gstRate: '18', deliveryDate: '', notes: '' });
     setShowOrderModal(false);
   }
 
@@ -999,12 +1001,46 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
             <Field label="Quantity" required><input type="number" className={inputCls} placeholder="0" value={orderForm.quantity} onChange={e => setOF('quantity', e.target.value)} min="0" /></Field>
             <Field label="Unit Price (₹)"><input type="number" className={inputCls} placeholder="0.00" value={orderForm.unitPrice} onChange={e => setOF('unitPrice', e.target.value)} min="0" /></Field>
           </div>
-          {orderForm.quantity && orderForm.unitPrice && (
-            <div className="bg-blue-50 rounded-lg p-3 mb-3 text-sm">
-              <span className="text-gray-600">Total: </span>
-              <span className="font-bold text-blue-700">₹{fmt(Number(orderForm.quantity) * Number(orderForm.unitPrice))}</span>
+          {/* GST toggle */}
+          <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mb-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Include GST</p>
+              <p className="text-xs text-gray-400">Add GST on top of unit price</p>
             </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" className="sr-only peer" checked={orderForm.includeGST} onChange={e => setOF('includeGST', e.target.checked)} />
+              <div className="w-10 h-5 bg-gray-200 peer-checked:bg-amber-600 rounded-full relative transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
+            </label>
+          </div>
+          {orderForm.includeGST && (
+            <Field label="GST Rate">
+              <select className={selectCls} value={orderForm.gstRate} onChange={e => setOF('gstRate', e.target.value)}>
+                <option value="5">5% GST</option>
+                <option value="12">12% GST</option>
+                <option value="18">18% GST</option>
+                <option value="28">28% GST</option>
+              </select>
+            </Field>
           )}
+          {orderForm.quantity && orderForm.unitPrice && (() => {
+            const base = Number(orderForm.quantity) * Number(orderForm.unitPrice);
+            const gst  = orderForm.includeGST ? base * Number(orderForm.gstRate) / 100 : 0;
+            return (
+              <div className="bg-blue-50 rounded-lg p-3 mb-3 text-sm space-y-1">
+                {orderForm.includeGST && (
+                  <>
+                    <div className="flex justify-between text-gray-600"><span>Taxable</span><span>₹{fmt(base)}</span></div>
+                    <div className="flex justify-between text-gray-600"><span>GST ({orderForm.gstRate}%)</span><span>₹{fmt(gst)}</span></div>
+                    <div className="border-t border-blue-200 pt-1" />
+                  </>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total</span>
+                  <span className="font-bold text-blue-700">₹{fmt(base + gst)}</span>
+                </div>
+              </div>
+            );
+          })()}
           <Field label="Notes"><textarea className={inputCls} rows={2} placeholder="Optional notes..." value={orderForm.notes} onChange={e => setOF('notes', e.target.value)} /></Field>
           <SaveBtn onClick={saveOrder} label="Create Order" />
         </Modal>
@@ -1172,7 +1208,14 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
               {/* Financial Summary */}
               <div className="px-4 py-3 border-b border-gray-100 space-y-2">
                 <p className="text-xs font-bold text-gray-700 mb-1">FINANCIAL SUMMARY</p>
-                {[['Order Value', `₹${fmt(orderVal)}`],['Total Dispatched', `${fmt(totalDisp)} ${cprod?.unit || 'units'}`],['Total Received', `₹${fmt(totalRcvd)}`],['Balance Due', `₹${fmt(Math.max(0, bal))}`]].map(([l,v],i) => (
+                {[
+                  co.includeGST ? ['Taxable Amount', `₹${fmt(co.taxableAmount || 0)}`] : null,
+                  co.includeGST ? [`GST (${co.gstRate || 18}%)`, `₹${fmt(co.gstAmount || 0)}`] : null,
+                  ['Order Value', `₹${fmt(orderVal)}`],
+                  ['Total Dispatched', `${fmt(totalDisp)} ${cprod?.unit || 'units'}`],
+                  ['Total Received', `₹${fmt(totalRcvd)}`],
+                  ['Balance Due', `₹${fmt(Math.max(0, bal))}`]
+                ].filter(Boolean).map(([l,v],i) => (
                   <div key={i} className="flex justify-between text-xs">
                     <span className="text-gray-500">{l}</span>
                     <span className={`font-bold ${l==='Total Received'?'text-green-700':l==='Balance Due'?bal<=0?'text-green-700':'text-red-600':'text-gray-800'}`}>{v}</span>
