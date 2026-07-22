@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
 import AuditLog from './AuditLog';
 import CAExport from './CAExport';
-import { Plus, Trash2, Pencil, X, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Archive, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2, SlidersHorizontal } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, ChevronRight, Building2, Layers, Package, Users, CreditCard, Tag, AlertTriangle, Cloud, CloudOff, CheckCircle, ExternalLink, Shield, LogOut, UserPlus, ArchiveRestore, Archive, Database, Wifi, WifiOff, Mail, MapPin, FileDown, FileUp, Share2, SlidersHorizontal, Wrench } from 'lucide-react';
 import { DOC_MAP } from '../services/firestoreDb';
 
 export default function Settings() {
@@ -24,6 +24,7 @@ export default function Settings() {
     { id: 'products', label: 'Products', icon: Package, color: 'text-green-500 bg-green-50' },
     { id: 'materialTypes', label: 'Material Types', icon: Package, color: 'text-amber-500 bg-amber-50' },
     { id: 'laborGroups', label: 'Production Team', icon: Users, color: 'text-purple-500 bg-purple-50' },
+    { id: 'installationTeams', label: 'Installation Teams', icon: Wrench, color: 'text-teal-500 bg-teal-50' },
     { id: 'bankAccounts', label: 'Bank Accounts', icon: CreditCard, color: 'text-teal-500 bg-teal-50' },
     { id: 'expenseCategories', label: 'Expense Categories', icon: Tag, color: 'text-red-500 bg-red-50' },
   ];
@@ -179,6 +180,13 @@ function SectionEditor({ sectionId, label, onClose }) {
     laborGroups: {
       fields: [
         { key: 'name', label: 'Group Name', type: 'text', required: true },
+        { key: 'description', label: 'Description', type: 'text' },
+      ],
+      display: item => item.name,
+    },
+    installationTeams: {
+      fields: [
+        { key: 'name', label: 'Team Name', type: 'text', required: true },
         { key: 'description', label: 'Description', type: 'text' },
       ],
       display: item => item.name,

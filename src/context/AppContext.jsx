@@ -60,6 +60,9 @@ const SEED = {
     { id: 'lg2', name: 'Group B' },
     { id: 'lg3', name: 'Group C' },
   ],
+  installationTeams: [],
+  installationJobs: [],
+  installationPayments: [],
   bankAccounts: [
     { id: 'ba1', name: 'HDFC Main', bankName: 'HDFC Bank', type: 'current' },
     { id: 'ba2', name: 'SBI Account', bankName: 'SBI', type: 'savings' },
@@ -320,22 +323,25 @@ export function AppProvider({ children }) {
       pendingProduction:  [],
       materialPurchases:  [],
       expenses:           [],
-      laborPayments:      [],
-      orders:             [],
-      orderPayments:      [],
-      orderDispatches:    [],
-      invoices:           [],
-      quotes:             [],
-      enquiries:          [],
-      auditLog:           [],
+      laborPayments:        [],
+      orders:               [],
+      orderPayments:        [],
+      orderDispatches:      [],
+      invoices:             [],
+      quotes:               [],
+      enquiries:            [],
+      auditLog:             [],
+      installationJobs:     [],
+      installationPayments: [],
       // Master data — blank unless retained
-      factories:          [],
-      productCategories:  [],
-      products:           [],
-      materialTypes:      [],
-      laborGroups:        [],
-      bankAccounts:       [],
-      expenseCategories:  [],
+      factories:            [],
+      productCategories:    [],
+      products:             [],
+      materialTypes:        [],
+      laborGroups:          [],
+      installationTeams:    [],
+      bankAccounts:         [],
+      expenseCategories:    [],
     };
     // Restore preserved sections from current data
     if (preserve.masterData) {
@@ -344,6 +350,7 @@ export function AppProvider({ children }) {
       next.products          = data.products;
       next.materialTypes     = data.materialTypes;
       next.laborGroups       = data.laborGroups;
+      next.installationTeams = data.installationTeams;
       next.bankAccounts      = data.bankAccounts;
       next.expenseCategories = data.expenseCategories;
     }

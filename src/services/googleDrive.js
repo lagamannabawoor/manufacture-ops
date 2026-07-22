@@ -1,9 +1,9 @@
 // ── File layout ──────────────────────────────────────────────────────────────
 export const FILE_MAP = {
-  'mfg_master.json':     ['factories','productCategories','products','materialTypes','laborGroups','bankAccounts','expenseCategories','users'],
+  'mfg_master.json':     ['factories','productCategories','products','materialTypes','laborGroups','installationTeams','bankAccounts','expenseCategories','users'],
   'mfg_production.json': ['productionEntries','pendingProduction'],
   'mfg_materials.json':  ['materialPurchases'],
-  'mfg_finance.json':    ['laborPayments','orders','orderPayments','expenses'],
+  'mfg_finance.json':    ['laborPayments','orders','orderPayments','expenses','installationJobs','installationPayments'],
   'mfg_audit.json':      ['auditLog'],
 };
 

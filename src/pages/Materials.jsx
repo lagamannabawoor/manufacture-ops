@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import Modal, { Field, inputCls, selectCls, SaveBtn } from '../components/Modal';
-import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download, Share2, Filter, Users, Receipt } from 'lucide-react';
+import { Plus, Trash2, Package, TrendingDown, Camera as CamIcon, FilePlus2, X, Eye, AlertTriangle, CheckCircle2, Download, Share2, Filter, Users, Receipt, Wrench, MapPin, ArrowDownCircle } from 'lucide-react';
 import { fmtDate, todayISO, monthRange } from '../utils/date';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -306,7 +306,7 @@ export default function Materials({ initialAction, onActionConsumed }) {
     <div>
       <Header
         title="Purchases"
-        subtitle="Materials · Production Team · Expenses"
+        subtitle="Materials · Production Team · Installation · Expenses"
         action={
           <button
             onClick={() => { setForm(freshForm()); setShowModal(true); }}
@@ -323,8 +323,9 @@ export default function Materials({ initialAction, onActionConsumed }) {
           {[
             { id: 'stock',     label: 'Stock'     },
             { id: 'purchases', label: 'Purchases' },
-            { id: 'labour',    label: 'Production Team'    },
-            { id: 'expenses',  label: 'Expenses'  },
+            { id: 'labour',       label: 'Production Team' },
+            { id: 'installation',  label: 'Installation'    },
+            { id: 'expenses',      label: 'Expenses'        },
           ].map(tab => (
             <button
               key={tab.id}
@@ -515,6 +516,7 @@ export default function Materials({ initialAction, onActionConsumed }) {
         )}
 
         {activeTab === 'labour' && <LaborTab triggerAdd={triggerLabourAdd} onTriggerConsumed={() => setTriggerLabourAdd(false)} />}
+        {activeTab === 'installation' && <InstallationTab />}
         {activeTab === 'expenses' && <ExpensesTab triggerAdd={triggerExpenseAdd} onTriggerConsumed={() => setTriggerExpenseAdd(false)} />}
       </div>
 
@@ -698,6 +700,473 @@ export default function Materials({ initialAction, onActionConsumed }) {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Installation Tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+function genInstallBillId() {
+  const now = new Date();
+  const d = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const t = (now.getTime() % 100000).toString().padStart(5, '0');
+  return `INST-${d}-${t}`;
+}
+
+function buildInstallationPaymentPDF(payment, job, team, ci) {
+  const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
+  const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
+  const coPhone   = ci?.phone   || '';
+  const A = [13,148,136], DK = [31,41,55], MD = [107,114,128], LT = [167,243,208];
+  const W = 210, ML = 14, MR = 14, CW = W - ML - MR;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let y = ML;
+
+  pdf.setFillColor(240,253,250); pdf.rect(ML, y, CW, 12, 'F');
+  pdf.setFontSize(10); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text('INSTALLATION PAYMENT VOUCHER', W/2, y+8, { align:'center' });
+  y += 16;
+
+  pdf.setFontSize(14); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text(coName.toUpperCase(), ML, y); y += 7;
+  pdf.setFontSize(8); pdf.setFont('helvetica','normal'); pdf.setTextColor(...MD);
+  coAddress.split('\n').forEach(l => { pdf.text(l, ML, y); y += 4; });
+  if (coPhone) { pdf.text('Ph: '+coPhone, ML, y); y += 4; }
+
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.5); pdf.line(ML, y+2, W-MR, y+2); y += 8;
+
+  const rows = [
+    ['Voucher No.',   payment.billNumber || '—'],
+    ['Date',          payment.date       || '—'],
+    ['Installation Team', team?.name     || '—'],
+    ['Project / Client',  (job?.projectName || job?.clientName) || '—'],
+    ['Client Name',   job?.clientName    || '—'],
+    ['Location',      job?.location      || '—'],
+    ['Price / Sqft',  job?.pricePerSqft ? `Rs.${fmt(job.pricePerSqft)}` : '—'],
+    ['Total Area',    job?.totalArea     ? `${fmt(job.totalArea)} sqft`  : '—'],
+    ['Job Value',     job?.totalAmount   ? rp(job.totalAmount)           : '—'],
+    ['Notes',         payment.notes      || '—'],
+  ];
+  autoTable(pdf, {
+    startY: y, margin: { left: ML, right: MR },
+    head: [['Field', 'Details']],
+    body: rows,
+    headStyles: { fillColor: A, textColor: [255,255,255], fontSize: 9, fontStyle: 'bold', cellPadding: 3 },
+    bodyStyles: { fontSize: 9, textColor: DK, cellPadding: 3, alternateRowStyles: { fillColor: [240,253,250] } },
+    columnStyles: { 0: { cellWidth: 45, fontStyle: 'bold' } },
+  });
+  y = pdf.lastAutoTable.finalY + 8;
+
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.4); pdf.line(W-MR-70, y, W-MR, y); y += 5;
+  pdf.setFontSize(13); pdf.setFont('helvetica','bold'); pdf.setTextColor(...A);
+  pdf.text('AMOUNT PAID', W-MR-70, y);
+  pdf.text(rp(payment.amount), W-MR, y, { align: 'right' }); y += 12;
+
+  const sw = CW/3; const sx = W-MR-sw;
+  if (ci?.signature) { try { pdf.addImage(ci.signature,'PNG',sx+4,y-4,sw-8,10); } catch {} }
+  pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(sx, y+8, W-MR, y+8);
+  pdf.setFontSize(8); pdf.setFont('helvetica','bold'); pdf.setTextColor(DK[0],DK[1],DK[2]);
+  pdf.text('Authorised Signatory', sx+sw/2, y+13, { align:'center' });
+
+  pdf.setFontSize(7); pdf.setTextColor(...LT);
+  pdf.text('Generated by Urbanmud Manufacturing Ops', W/2, 287, { align:'center' });
+  return pdf;
+}
+
+async function shareInstallPDF(pdf, filename) {
+  const blob = pdf.output('blob');
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+    const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+    const result = await Filesystem.writeFile({ path: filename, data: b64, directory: Directory.Cache });
+    await Share.share({ title: filename, url: result.uri });
+  } catch { pdf.save(filename); }
+}
+
+const INSTALL_STATUS = [
+  { id: 'yet_to_start', label: 'Yet to Start',  color: 'bg-gray-100 text-gray-600'  },
+  { id: 'pending',      label: 'Pending',        color: 'bg-amber-100 text-amber-700' },
+  { id: 'in_progress',  label: 'In Progress',    color: 'bg-blue-100 text-blue-700'  },
+  { id: 'completed',    label: 'Completed',       color: 'bg-green-100 text-green-700'},
+];
+
+function emptyJob() {
+  return { date: todayISO(), installationTeamId: '', clientName: '', projectName: '', location: '', productId: '', pricePerSqft: '', totalArea: '', status: 'pending', notes: '' };
+}
+function emptyPay() {
+  return { date: todayISO(), amount: '', bankAccountId: '', notes: '', billNumber: genInstallBillId() };
+}
+
+export function InstallationTab() {
+  const app = useApp();
+  const [showJobModal, setShowJobModal]   = useState(false);
+  const [editingJob, setEditingJob]       = useState(null);
+  const [jobForm, setJobForm]             = useState(emptyJob);
+  const [showPayModal, setShowPayModal]   = useState(false);
+  const [payJob, setPayJob]               = useState(null);
+  const [payForm, setPayForm]             = useState(emptyPay);
+  const [viewingPay, setViewingPay]       = useState(null);
+  const [vBusy, setVBusy]                 = useState(false);
+  const [filterFrom, setFilterFrom]       = useState(() => monthRange().from);
+  const [filterTo, setFilterTo]           = useState(() => monthRange().to);
+  const [filterTeam, setFilterTeam]       = useState('');
+  const [filterStatus, setFilterStatus]   = useState('');
+  const [filterSearch, setFilterSearch]   = useState('');
+
+  const jobs = (app.installationJobs || []);
+  const payments = (app.installationPayments || []);
+  const teams = (app.installationTeams || []);
+
+  function setJF(k, v) {
+    setJobForm(f => {
+      const u = { ...f, [k]: v };
+      if (k === 'pricePerSqft' || k === 'totalArea') {
+        const p = parseFloat(k === 'pricePerSqft' ? v : f.pricePerSqft) || 0;
+        const a = parseFloat(k === 'totalArea'     ? v : f.totalArea)     || 0;
+        if (p > 0 && a > 0) u.totalAmount = String((p * a).toFixed(2));
+        else u.totalAmount = '';
+      }
+      return u;
+    });
+  }
+  function setPF(k, v) { setPayForm(f => ({ ...f, [k]: v })); }
+
+  function openAddJob() {
+    const base = emptyJob();
+    if (teams.length === 1) base.installationTeamId = teams[0].id;
+    if ((app.products||[]).length === 1) base.productId = (app.products||[])[0].id;
+    setEditingJob(null); setJobForm(base); setShowJobModal(true);
+  }
+  function openEditJob(job) { setEditingJob(job); setJobForm({ ...emptyJob(), ...job }); setShowJobModal(true); }
+
+  function saveJob() {
+    if (!jobForm.installationTeamId) return alert('Installation Team is required.');
+    if (!jobForm.clientName.trim())  return alert('Client Name is required.');
+    if (!jobForm.totalArea)          return alert('Total Area is required.');
+    const totalAmount = (parseFloat(jobForm.pricePerSqft)||0) * (parseFloat(jobForm.totalArea)||0);
+    const entry = { ...jobForm, totalAmount: totalAmount.toFixed(2) };
+    if (editingJob) app.updateItem('installationJobs', editingJob.id, entry);
+    else app.addItem('installationJobs', entry);
+    setShowJobModal(false);
+  }
+
+  function openPay(job) {
+    const base = emptyPay();
+    if ((app.bankAccounts||[]).length === 1) base.bankAccountId = (app.bankAccounts||[])[0].id;
+    setPayJob(job); setPayForm(base); setShowPayModal(true);
+  }
+  function savePay() {
+    if (!payForm.amount) return alert('Amount is required.');
+    app.addItem('installationPayments', { ...payForm, jobId: payJob.id, installationTeamId: payJob.installationTeamId });
+    setShowPayModal(false);
+  }
+
+  // Summary per team
+  const teamSummary = teams.map(t => {
+    const tJobs = jobs.filter(j => j.installationTeamId === t.id);
+    const totalValue = tJobs.reduce((s, j) => s + Number(j.totalAmount || 0), 0);
+    const totalPaid  = payments.filter(p => p.installationTeamId === t.id).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const balance    = totalValue - totalPaid;
+    return { ...t, totalValue, totalPaid, balance };
+  }).filter(t => t.totalValue > 0 || t.totalPaid > 0);
+
+  const statusMap = Object.fromEntries(INSTALL_STATUS.map(s => [s.id, s]));
+
+  const filtered = [...jobs]
+    .filter(j => { const d = j.date || todayISO(); return (!filterFrom || d >= filterFrom) && (!filterTo || d <= filterTo); })
+    .filter(j => !filterTeam   || j.installationTeamId === filterTeam)
+    .filter(j => !filterStatus || j.status === filterStatus)
+    .filter(j => !filterSearch || `${j.clientName} ${j.projectName} ${j.location}`.toLowerCase().includes(filterSearch.toLowerCase()))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  return (
+    <div className="px-4 py-4">
+
+      {/* ── Summary widgets ─── */}
+      {teamSummary.length > 0 && (
+        <div className="mb-4 space-y-2">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Team Summary</p>
+          {teamSummary.map(t => (
+            <div key={t.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center">
+                    <Wrench size={13} className="text-teal-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800">{t.name}</p>
+                </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t.balance > 0.5 ? 'bg-red-100 text-red-700' : t.balance < -0.5 ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                  {t.balance > 0.5 ? `Due ₹${fmt(t.balance)}` : t.balance < -0.5 ? `Overpaid ₹${fmt(-t.balance)}` : 'Settled'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-center text-[11px]">
+                <div><p className="text-gray-400">Job Value</p><p className="font-bold text-gray-800">₹{fmt(t.totalValue)}</p></div>
+                <div><p className="text-gray-400">Paid</p><p className="font-bold text-green-700">₹{fmt(t.totalPaid)}</p></div>
+                <div><p className="text-gray-400">Balance</p><p className={`font-bold ${t.balance > 0 ? 'text-red-600' : 'text-green-700'}`}>₹{fmt(Math.abs(t.balance))}</p></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Header & Add button ─── */}
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-700">Installation Jobs</p>
+        <button onClick={openAddJob} className="flex items-center gap-1 bg-teal-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">
+          <Plus size={14} /> Add Job
+        </button>
+      </div>
+
+      {/* ── Filters ─── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Filter size={12} className="text-teal-600" />
+          <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Filter</span>
+          <span className="ml-auto text-xs text-gray-400">{filtered.length} job{filtered.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="date" className={inputCls} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+          <input type="date" className={inputCls} value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+          <select className={selectCls} value={filterTeam} onChange={e => setFilterTeam(e.target.value)}>
+            <option value="">All Teams</option>
+            {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select className={selectCls} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="">All Statuses</option>
+            {INSTALL_STATUS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          <input type="search" placeholder="Search client / project / location…" className={`${inputCls} col-span-2`}
+            value={filterSearch} onChange={e => setFilterSearch(e.target.value)} />
+        </div>
+      </div>
+
+      {/* ── Job cards ─── */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-300">
+          <Wrench size={40} className="mx-auto mb-2" />
+          <p className="text-sm font-medium">No installation jobs</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(job => {
+            const team    = teams.find(t => t.id === job.installationTeamId);
+            const product = (app.products||[]).find(p => p.id === job.productId);
+            const jobPays = payments.filter(p => p.jobId === job.id);
+            const totalPaid = jobPays.reduce((s, p) => s + Number(p.amount || 0), 0);
+            const balance   = Number(job.totalAmount || 0) - totalPaid;
+            const st = statusMap[job.status] || statusMap['pending'];
+            return (
+              <div key={job.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                {/* Header */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-1.5 items-center mb-1">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                      {team && <span className="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100">{team.name}</span>}
+                    </div>
+                    <p className="font-semibold text-gray-800 truncate">{job.clientName}{job.projectName && job.projectName !== job.clientName ? ` · ${job.projectName}` : ''}</p>
+                    {job.location && <p className="text-xs text-gray-400 flex items-center gap-0.5"><MapPin size={10}/>{job.location}</p>}
+                  </div>
+                  <div className="text-right ml-2">
+                    <p className="text-base font-bold text-gray-800">₹{fmt(job.totalAmount)}</p>
+                    <p className="text-xs text-green-600">Paid: ₹{fmt(totalPaid)}</p>
+                    {balance > 0.5 && <p className="text-xs text-red-500">Due: ₹{fmt(balance)}</p>}
+                  </div>
+                </div>
+
+                {/* Details row */}
+                <div className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5 border-t border-gray-50 pt-2 mb-2">
+                  {product && <span>{product.name}</span>}
+                  {job.pricePerSqft && <span>₹{fmt(job.pricePerSqft)}/sqft</span>}
+                  {job.totalArea && <span>{fmt(job.totalArea)} sqft</span>}
+                  <span>{fmtDate(job.date)}</span>
+                </div>
+
+                {/* Payment history */}
+                {jobPays.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 mb-2 space-y-1">
+                    {jobPays.slice(-3).map(p => {
+                      const acc = (app.bankAccounts||[]).find(b => b.id === p.bankAccountId);
+                      return (
+                        <div key={p.id} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">{fmtDate(p.date)}{acc ? ` · ${acc.name}` : ''}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-green-700">+₹{fmt(p.amount)}</span>
+                            <button onClick={() => setViewingPay({ p, job, team })}
+                              className="text-blue-600 text-[10px] font-bold px-1.5 py-0.5 border border-blue-200 rounded bg-blue-50">
+                              <Eye size={10} className="inline mr-0.5"/>Receipt
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {jobPays.length > 3 && <p className="text-[10px] text-gray-400">{jobPays.length - 3} more…</p>}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => openPay(job)}
+                    className="flex items-center gap-1 bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-teal-200">
+                    <ArrowDownCircle size={12}/> Add Payment
+                  </button>
+                  <button onClick={() => openEditJob(job)}
+                    className="flex items-center gap-1 bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200">
+                    Edit Job
+                  </button>
+                  {/* Status quick-update */}
+                  <select value={job.status}
+                    onChange={e => app.updateItem('installationJobs', job.id, { status: e.target.value })}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-600">
+                    {INSTALL_STATUS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                  <button onClick={() => { if (confirm('Delete this job and all its payments?')) { payments.filter(p => p.jobId === job.id).forEach(p => app.deleteItem('installationPayments', p.id)); app.deleteItem('installationJobs', job.id); }}}
+                    className="ml-auto text-gray-300 hover:text-red-400 p-1"><Trash2 size={15}/></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Add / Edit Job Modal ─── */}
+      {showJobModal && (
+        <Modal title={editingJob ? 'Edit Installation Job' : 'Add Installation Job'} onClose={() => setShowJobModal(false)}>
+          <Field label="Date" required>
+            <input type="date" className={inputCls} value={jobForm.date} onChange={e => setJF('date', e.target.value)} />
+          </Field>
+          <Field label="Installation Team" required>
+            <select className={selectCls} value={jobForm.installationTeamId} onChange={e => setJF('installationTeamId', e.target.value)}>
+              <option value="">Select team…</option>
+              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Client Name" required>
+              <input className={inputCls} placeholder="Customer name…" value={jobForm.clientName} onChange={e => setJF('clientName', e.target.value)} />
+            </Field>
+            <Field label="Project Name">
+              <input className={inputCls} placeholder="Site / project…" value={jobForm.projectName} onChange={e => setJF('projectName', e.target.value)} />
+            </Field>
+          </div>
+          <Field label="Location">
+            <input className={inputCls} placeholder="Address / area…" value={jobForm.location} onChange={e => setJF('location', e.target.value)} />
+          </Field>
+          <Field label="Product">
+            <select className={selectCls} value={jobForm.productId} onChange={e => setJF('productId', e.target.value)}>
+              <option value="">Select product…</option>
+              {(app.productCategories||[]).map(cat => (
+                <optgroup key={cat.id} label={cat.name}>
+                  {(app.products||[]).filter(p => p.categoryId === cat.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Price per Sqft (₹)">
+              <input type="number" className={inputCls} placeholder="0.00" value={jobForm.pricePerSqft} onChange={e => setJF('pricePerSqft', e.target.value)} min="0" />
+            </Field>
+            <Field label="Total Area (sqft)" required>
+              <input type="number" className={inputCls} placeholder="0" value={jobForm.totalArea} onChange={e => setJF('totalArea', e.target.value)} min="0" />
+            </Field>
+          </div>
+          {jobForm.totalArea && jobForm.pricePerSqft && (
+            <div className="bg-teal-50 rounded-lg px-3 py-2 mb-3 flex justify-between text-sm">
+              <span className="text-gray-600">Total Amount</span>
+              <span className="font-bold text-teal-700">₹{fmt((parseFloat(jobForm.pricePerSqft)||0)*(parseFloat(jobForm.totalArea)||0))}</span>
+            </div>
+          )}
+          <Field label="Fitting Completion Status" required>
+            <select className={selectCls} value={jobForm.status} onChange={e => setJF('status', e.target.value)}>
+              {INSTALL_STATUS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Notes">
+            <textarea className={inputCls} rows={2} placeholder="Any remarks…" value={jobForm.notes} onChange={e => setJF('notes', e.target.value)} />
+          </Field>
+          <SaveBtn onClick={saveJob} label={editingJob ? 'Update Job' : 'Add Job'} />
+        </Modal>
+      )}
+
+      {/* ── Add Payment Modal ─── */}
+      {showPayModal && payJob && (
+        <Modal title={`Add Payment — ${payJob.clientName}`} onClose={() => setShowPayModal(false)}>
+          <div className="bg-teal-50 border border-teal-100 rounded-xl px-3 py-2 mb-3">
+            <p className="text-xs font-semibold text-teal-800">{payJob.clientName}{payJob.projectName ? ` · ${payJob.projectName}` : ''}</p>
+            <p className="text-xs text-teal-600">Job Value: ₹{fmt(payJob.totalAmount)}</p>
+          </div>
+          <Field label="Date" required>
+            <input type="date" className={inputCls} value={payForm.date} onChange={e => setPF('date', e.target.value)} />
+          </Field>
+          <Field label="Voucher No.">
+            <input className={inputCls} value={payForm.billNumber} onChange={e => setPF('billNumber', e.target.value)} />
+          </Field>
+          <Field label="Amount (₹)" required>
+            <input type="number" className={inputCls} placeholder="0.00" value={payForm.amount} onChange={e => setPF('amount', e.target.value)} min="0" />
+          </Field>
+          <Field label="Payment Account">
+            <select className={selectCls} value={payForm.bankAccountId} onChange={e => setPF('bankAccountId', e.target.value)}>
+              <option value="">Select account…</option>
+              {(app.bankAccounts||[]).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Notes">
+            <textarea className={inputCls} rows={2} placeholder="Instalment details…" value={payForm.notes} onChange={e => setPF('notes', e.target.value)} />
+          </Field>
+          <SaveBtn onClick={savePay} label="Record Payment" />
+        </Modal>
+      )}
+
+      {/* ── Payment Receipt Viewer ─── */}
+      {viewingPay && (
+        <div className="fixed inset-0 z-[300] bg-gray-50 flex flex-col">
+          <div className="flex items-center gap-2 px-3 py-3 bg-white border-b border-gray-100 shadow-sm shrink-0">
+            <button onClick={() => setViewingPay(null)} className="p-1.5 text-gray-600"><X size={20}/></button>
+            <span className="flex-1 font-bold text-gray-800 text-sm truncate">Installation Payment Receipt</span>
+            <button onClick={async () => { setVBusy(true); try { const pdf = buildInstallationPaymentPDF(viewingPay.p, viewingPay.job, viewingPay.team, app.companyInfo||{}); await shareInstallPDF(pdf, `${viewingPay.p.billNumber||'INST'}.pdf`); } finally { setVBusy(false); } }}
+              disabled={vBusy}
+              className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50">
+              <Download size={13}/> Save / Share
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="bg-teal-700 px-4 pt-4 pb-3">
+                <p className="font-bold text-white">{app.companyInfo?.name || 'UrbanMud Bricks and Blocks'}</p>
+                <p className="text-teal-200 text-xs mt-0.5">Installation Payment Voucher</p>
+              </div>
+              <div className="px-4 py-4 space-y-2.5">
+                {[
+                  ['Voucher No.', viewingPay.p.billNumber],
+                  ['Date', fmtDate(viewingPay.p.date)],
+                  ['Team', viewingPay.team?.name],
+                  ['Client', viewingPay.job?.clientName],
+                  ['Project', viewingPay.job?.projectName],
+                  ['Location', viewingPay.job?.location],
+                  ['Product', (app.products||[]).find(p => p.id === viewingPay.job?.productId)?.name],
+                  ['Price/Sqft', viewingPay.job?.pricePerSqft ? `₹${fmt(viewingPay.job.pricePerSqft)}` : null],
+                  ['Total Area', viewingPay.job?.totalArea ? `${fmt(viewingPay.job.totalArea)} sqft` : null],
+                  ['Job Value', viewingPay.job?.totalAmount ? `₹${fmt(viewingPay.job.totalAmount)}` : null],
+                  ['Account', (app.bankAccounts||[]).find(b => b.id === viewingPay.p.bankAccountId)?.name],
+                  ['Notes', viewingPay.p.notes],
+                ].filter(([,v]) => v).map(([l, v], i) => (
+                  <div key={i} className="flex justify-between items-start gap-3">
+                    <span className="text-xs text-gray-400 shrink-0 w-24">{l}</span>
+                    <span className="text-xs font-semibold text-gray-800 text-right">{v}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mx-4 mb-4 pt-3 border-t-2 border-teal-600 flex justify-between items-center">
+                <span className="font-bold text-gray-800">Amount Paid</span>
+                <span className="text-xl font-bold text-teal-700">₹{fmt(viewingPay.p.amount)}</span>
+              </div>
+            </div>
           </div>
         </div>
       )}

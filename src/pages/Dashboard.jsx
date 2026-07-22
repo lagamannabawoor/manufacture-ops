@@ -22,10 +22,11 @@ export default function Dashboard({ navigate }) {
   const todayProd        = app.productionEntries.filter(e => e.date === t);
   const todayUnits       = todayProd.reduce((s, e) => s + Number(e.quantity || 0), 0);
   const todayIncome      = app.orderPayments.filter(p => p.date === t && p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
-  const todayLaborCost   = app.laborPayments.filter(p => p.date === t).reduce((s, p) => s + Number(p.amount || 0), 0);
+  const todayLaborCost      = app.laborPayments.filter(p => p.date === t).reduce((s, p) => s + Number(p.amount || 0), 0);
+  const todayInstallCost  = (app.installationPayments || []).filter(p => p.date === t).reduce((s, p) => s + Number(p.amount || 0), 0);
   const todayExpenses    = app.expenses.filter(e => e.date === t).reduce((s, e) => s + Number(e.amount || 0), 0);
   const todayMatCost     = app.materialPurchases.filter(p => p.date === t).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
-  const netToday         = todayIncome - (todayLaborCost + todayExpenses + todayMatCost);
+  const netToday         = todayIncome - (todayLaborCost + todayInstallCost + todayExpenses + todayMatCost);
 
   // ── Month-to-date ─────────────────────────────────────────────────────
   const mtdIncome   = app.orderPayments.filter(p => p.date?.startsWith(thisMonth) && p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -258,7 +259,7 @@ export default function Dashboard({ navigate }) {
         </div>
 
         {/* ── TODAY's NET P&L ───────────────────────────────────── */}
-        {(todayIncome > 0 || todayLaborCost > 0 || todayExpenses > 0 || todayMatCost > 0) && (
+        {(todayIncome > 0 || todayLaborCost > 0 || todayInstallCost > 0 || todayExpenses > 0 || todayMatCost > 0) && (
           <div className={`rounded-xl p-4 border ${netToday >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs font-semibold text-gray-600">Today's Net P&L</p>
@@ -269,8 +270,8 @@ export default function Dashboard({ navigate }) {
             <p className={`text-2xl font-bold ${netToday >= 0 ? 'text-green-700' : 'text-red-700'}`}>
               {netToday >= 0 ? '+' : ''}{cur(netToday)}
             </p>
-            <div className="grid grid-cols-3 gap-1 mt-2 pt-2 border-t border-gray-200 text-center">
-              {[['Income', todayIncome, 'text-green-600'], ['Production Team', todayLaborCost, 'text-red-500'], ['Materials', todayMatCost, 'text-red-500']].map(([l, v, cls]) => (
+            <div className="grid grid-cols-4 gap-1 mt-2 pt-2 border-t border-gray-200 text-center">
+              {[['Income', todayIncome, 'text-green-600'], ['Prod Team', todayLaborCost, 'text-red-500'], ['Install', todayInstallCost, 'text-red-500'], ['Materials', todayMatCost, 'text-red-500']].map(([l, v, cls]) => (
                 <div key={l}>
                   <p className="text-[10px] text-gray-400">{l}</p>
                   <p className={`text-xs font-bold ${cls}`}>{cur(v)}</p>

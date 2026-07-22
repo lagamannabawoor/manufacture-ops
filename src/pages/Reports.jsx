@@ -164,11 +164,12 @@ export default function Reports() {
     setSending(false);
   }
 
-  const prodEntries   = app.productionEntries.filter(e => inRange(e.date));
-  const matPurchases  = app.materialPurchases.filter(p => inRange(p.date));
-  const laborPays     = app.laborPayments.filter(p => inRange(p.date));
-  const orderPays     = app.orderPayments.filter(p => inRange(p.date));
-  const expenseItems  = app.expenses.filter(e => inRange(e.date));
+  const prodEntries    = app.productionEntries.filter(e => inRange(e.date));
+  const matPurchases   = app.materialPurchases.filter(p => inRange(p.date));
+  const laborPays      = app.laborPayments.filter(p => inRange(p.date));
+  const orderPays      = app.orderPayments.filter(p => inRange(p.date));
+  const expenseItems   = app.expenses.filter(e => inRange(e.date));
+  const installPays    = (app.installationPayments || []).filter(p => inRange(p.date));
 
   // ── Invoice calculations ──────────────────────────────────────────
   const invoicesAll      = app.invoices || [];
@@ -230,12 +231,21 @@ export default function Reports() {
   }).filter(m => m.purchasedKg > 0);
 
   // ── Existing P&L ─────────────────────────────────────────────────
-  const totalMaterialCost = matPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
-  const totalLaborCost    = laborPays.reduce((s, p) => s + Number(p.amount || 0), 0);
-  const totalExpenses     = expenseItems.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const totalOrderIncome  = orderPays.filter(p => p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
-  const totalOut = totalMaterialCost + totalLaborCost + totalExpenses;
+  const totalMaterialCost     = matPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+  const totalLaborCost        = laborPays.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalInstallationCost = installPays.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalExpenses         = expenseItems.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const totalOrderIncome      = orderPays.filter(p => p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalOut = totalMaterialCost + totalLaborCost + totalInstallationCost + totalExpenses;
   const netPL    = totalOrderIncome + totalInvCollected - totalOut;
+
+  // ── Installation balances (all-time) ─────────────────────────────
+  const installBalances = (app.installationTeams || []).map(t => {
+    const tJobs  = (app.installationJobs || []).filter(j => j.installationTeamId === t.id);
+    const value  = tJobs.reduce((s, j) => s + Number(j.totalAmount || 0), 0);
+    const paid   = (app.installationPayments || []).filter(p => p.installationTeamId === t.id).reduce((s, p) => s + Number(p.amount || 0), 0);
+    return { ...t, value, paid, balance: value - paid };
+  }).filter(t => t.value > 0 || t.paid > 0);
 
   const productionByProduct = {};
   prodEntries.forEach(e => {
@@ -247,11 +257,12 @@ export default function Reports() {
   const totalUnits = prodEntries.reduce((s, e) => s + Number(e.quantity || 0), 0);
 
   const byAccount = app.bankAccounts.map(acc => {
-    const income = orderPays.filter(p => p.direction === 'received' && p.bankAccountId === acc.id).reduce((s, p) => s + Number(p.amount || 0), 0);
-    const labor  = laborPays.filter(p => p.bankAccountId === acc.id).reduce((s, p) => s + Number(p.amount || 0), 0);
-    const exp    = expenseItems.filter(e => e.bankAccountId === acc.id).reduce((s, e) => s + Number(e.amount || 0), 0);
-    const mat    = matPurchases.filter(p => p.bankAccountId === acc.id).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
-    return { ...acc, income, out: labor + exp + mat, net: income - labor - exp - mat };
+    const income   = orderPays.filter(p => p.direction === 'received' && p.bankAccountId === acc.id).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const labor    = laborPays.filter(p => p.bankAccountId === acc.id).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const install  = installPays.filter(p => p.bankAccountId === acc.id).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const exp      = expenseItems.filter(e => e.bankAccountId === acc.id).reduce((s, e) => s + Number(e.amount || 0), 0);
+    const mat      = matPurchases.filter(p => p.bankAccountId === acc.id).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+    return { ...acc, income, out: labor + install + exp + mat, net: income - labor - install - exp - mat };
   }).filter(a => a.income > 0 || a.out > 0);
 
   const dateCls = 'border border-gray-200 rounded-lg px-2 py-1.5 text-xs w-full focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white';
@@ -528,6 +539,26 @@ export default function Reports() {
           )}
         </CollapsibleSection>
 
+        {/* ── INSTALLATION SUMMARY ── */}
+        {installBalances.length > 0 && (
+          <CollapsibleSection title="Installation Team Summary" icon={<Users size={16} className="text-teal-500" />} defaultOpen={false}>
+            {installBalances.map(t => (
+              <div key={t.id} className="py-2.5 border-b border-gray-50 last:border-0">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-semibold text-gray-700">{t.name}</p>
+                  <p className={`text-sm font-bold ${t.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {t.balance > 0 ? `Due: ${cur(t.balance)}` : 'Settled'}
+                  </p>
+                </div>
+                <div className="flex gap-4 mt-0.5 text-[11px] text-gray-400">
+                  <span>Job Value: {cur(t.value)}</span>
+                  <span>Paid: {cur(t.paid)}</span>
+                </div>
+              </div>
+            ))}
+          </CollapsibleSection>
+        )}
+
         {/* ── LABOUR SUMMARY ── */}
         {labourBalances.length > 0 && (
           <CollapsibleSection title="Production Team Summary" icon={<Users size={16} className="text-purple-500" />} defaultOpen={false}>
@@ -560,6 +591,7 @@ export default function Reports() {
             <p className="text-[11px] font-semibold text-gray-400 mb-2 uppercase tracking-wide">Outflows</p>
             <Row label="Material Purchases" value={cur(totalMaterialCost)} valueClass="text-red-500" />
             <Row label="Production Team Payments" value={cur(totalLaborCost)} valueClass="text-red-500" />
+            <Row label="Installation Payments" value={cur(totalInstallationCost)} valueClass="text-red-500" />
             <Row label="Other Expenses" value={cur(totalExpenses)} valueClass="text-red-500" />
             <div className="flex justify-between items-center pt-2 border-t border-gray-100 mt-2">
               <span className="text-sm font-bold text-gray-700">Total Outflow</span>
