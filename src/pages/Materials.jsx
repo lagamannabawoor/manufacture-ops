@@ -164,8 +164,9 @@ export default function Materials({ initialAction, onActionConsumed }) {
   const [showModal, setShowModal]     = useState(false);
   const [form, setForm]               = useState(freshForm);
   const [activeTab, setActiveTab]       = useState('stock');
-  const [triggerLabourAdd, setTriggerLabourAdd]   = useState(false);
-  const [triggerExpenseAdd, setTriggerExpenseAdd] = useState(false);
+  const [triggerLabourAdd, setTriggerLabourAdd]       = useState(false);
+  const [triggerExpenseAdd, setTriggerExpenseAdd]     = useState(false);
+  const [triggerInstallAdd, setTriggerInstallAdd]     = useState(false);
 
   useEffect(() => {
     if (!initialAction) return;
@@ -174,7 +175,11 @@ export default function Materials({ initialAction, onActionConsumed }) {
     else if (initialAction === 'tab_expenses_add'){ setActiveTab('expenses');  setTriggerExpenseAdd(true);  onActionConsumed?.(); }
     else {
       const map = { tab_stock: 'stock', tab_purchases: 'purchases', tab_labour: 'labour', tab_installation: 'installation', tab_expenses: 'expenses' };
-      if (map[initialAction]) { setActiveTab(map[initialAction]); onActionConsumed?.(); }
+      if (map[initialAction]) {
+        setActiveTab(map[initialAction]);
+        if (initialAction === 'tab_installation') setTriggerInstallAdd(true);
+        onActionConsumed?.();
+      }
     }
   }, [initialAction]);
   const [capturing, setCapturing]     = useState(false);
@@ -306,14 +311,21 @@ export default function Materials({ initialAction, onActionConsumed }) {
     <div>
       <Header
         title="Purchases"
-        subtitle="Materials · Production Team · Installation · Expenses"
+        subtitle={activeTab === 'stock' ? 'Stock Overview' : activeTab === 'purchases' ? 'Material Purchases' : activeTab === 'labour' ? 'Production Team Payments' : activeTab === 'installation' ? 'Installation Jobs & Payments' : 'Expenses'}
         action={
           <button
-            onClick={() => { setForm(freshForm()); setShowModal(true); }}
+            onClick={() => {
+              if (activeTab === 'purchases')    { setForm(freshForm()); setShowModal(true); }
+              else if (activeTab === 'labour')       setTriggerLabourAdd(true);
+              else if (activeTab === 'installation') setTriggerInstallAdd(true);
+              else if (activeTab === 'expenses')     setTriggerExpenseAdd(true);
+            }}
             className="bg-white/20 hover:bg-white/30 text-white rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5"
           >
             <Plus size={16} />
-            <span className="text-[9px] font-semibold leading-none">Purchase</span>
+            <span className="text-[9px] font-semibold leading-none">
+              {activeTab === 'purchases' ? 'Purchase' : activeTab === 'labour' ? 'Pay' : activeTab === 'installation' ? 'Add Job' : activeTab === 'expenses' ? 'Expense' : ''}
+            </span>
           </button>
         }
       />
@@ -516,7 +528,7 @@ export default function Materials({ initialAction, onActionConsumed }) {
         )}
 
         {activeTab === 'labour' && <LaborTab triggerAdd={triggerLabourAdd} onTriggerConsumed={() => setTriggerLabourAdd(false)} />}
-        {activeTab === 'installation' && <InstallationTab />}
+        {activeTab === 'installation' && <InstallationTab triggerAdd={triggerInstallAdd} onTriggerConsumed={() => setTriggerInstallAdd(false)} />}
         {activeTab === 'expenses' && <ExpensesTab triggerAdd={triggerExpenseAdd} onTriggerConsumed={() => setTriggerExpenseAdd(false)} />}
       </div>
 
@@ -797,13 +809,13 @@ const INSTALL_STATUS = [
 ];
 
 function emptyJob() {
-  return { date: todayISO(), installationTeamId: '', clientName: '', projectName: '', location: '', productId: '', pricePerSqft: '', totalArea: '', status: 'pending', notes: '' };
+  return { date: todayISO(), installationTeamId: '', clientName: '', projectName: '', location: '', productId: '', pricePerSqft: '', totalArea: '', status: 'yet_to_start', notes: '' };
 }
 function emptyPay() {
   return { date: todayISO(), amount: '', bankAccountId: '', notes: '', billNumber: genInstallBillId() };
 }
 
-export function InstallationTab() {
+export function InstallationTab({ triggerAdd, onTriggerConsumed }) {
   const app = useApp();
   const [showJobModal, setShowJobModal]   = useState(false);
   const [editingJob, setEditingJob]       = useState(null);
@@ -818,6 +830,10 @@ export function InstallationTab() {
   const [filterTeam, setFilterTeam]       = useState('');
   const [filterStatus, setFilterStatus]   = useState('');
   const [filterSearch, setFilterSearch]   = useState('');
+
+  useEffect(() => {
+    if (triggerAdd) { openAddJob(); onTriggerConsumed?.(); }
+  }, [triggerAdd]);
 
   const jobs = (app.installationJobs || []);
   const payments = (app.installationPayments || []);
@@ -846,9 +862,11 @@ export function InstallationTab() {
   function openEditJob(job) { setEditingJob(job); setJobForm({ ...emptyJob(), ...job }); setShowJobModal(true); }
 
   function saveJob() {
-    if (!jobForm.installationTeamId) return alert('Installation Team is required.');
-    if (!jobForm.clientName.trim())  return alert('Client Name is required.');
-    if (!jobForm.totalArea)          return alert('Total Area is required.');
+    if (!jobForm.installationTeamId)    return alert('Installation Team is required.');
+    if (!jobForm.clientName.trim())     return alert('Client Name is required.');
+    if (!jobForm.productId)             return alert('Product is required.');
+    if (!jobForm.pricePerSqft)          return alert('Price per Sqft is required.');
+    if (!jobForm.totalArea)             return alert('Total Area is required.');
     const totalAmount = (parseFloat(jobForm.pricePerSqft)||0) * (parseFloat(jobForm.totalArea)||0);
     const entry = { ...jobForm, totalAmount: totalAmount.toFixed(2) };
     if (editingJob) app.updateItem('installationJobs', editingJob.id, entry);
@@ -1058,7 +1076,7 @@ export function InstallationTab() {
           <Field label="Location">
             <input className={inputCls} placeholder="Address / area…" value={jobForm.location} onChange={e => setJF('location', e.target.value)} />
           </Field>
-          <Field label="Product">
+          <Field label="Product" required>
             <select className={selectCls} value={jobForm.productId} onChange={e => setJF('productId', e.target.value)}>
               <option value="">Select product…</option>
               {(app.productCategories||[]).map(cat => (
@@ -1069,7 +1087,7 @@ export function InstallationTab() {
             </select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Price per Sqft (₹)">
+            <Field label="Price per Sqft (₹)" required>
               <input type="number" className={inputCls} placeholder="0.00" value={jobForm.pricePerSqft} onChange={e => setJF('pricePerSqft', e.target.value)} min="0" />
             </Field>
             <Field label="Total Area (sqft)" required>
