@@ -802,10 +802,11 @@ function buildPDF(docData, type, ci, bankAccounts) {
     needPage(subBoxH + 4);
     pdf.setDrawColor(200, 200, 200); pdf.setLineWidth(0.3);
     pdf.rect(ML - 1, y, CW + 2, subBoxH);
+    const subMidY = y + subBoxH / 2 + 1.5;
     pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
-    pdf.text('Sub:', ML + 3, y + 5);
+    pdf.text('Sub:', ML + 3, subMidY - (subText.length - 1) * 2.5);
     pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...DK);
-    subText.forEach((l, i) => pdf.text(l, ML + 16, y + 5 + i * 5));
+    subText.forEach((l, i) => pdf.text(l, ML + 16, subMidY - (subText.length - 1) * 2.5 + i * 5));
     y += subBoxH + 4;
   }
 
@@ -842,42 +843,25 @@ function buildPDF(docData, type, ci, bankAccounts) {
   });
   y = pdf.lastAutoTable.finalY + 7;
 
-  // ─── TOTALS (bordered table) ───────────────────────────────────────────────
+  // ─── TOTALS ────────────────────────────────────────────────────────────────
   needPage(55);
   const TX = W - MR - 82;
-  const totalsRows = [['Subtotal', rp(subtotal)]];
-  if (discAmt > 0) totalsRows.push(['Discount', '- ' + rp(discAmt)]);
-  if (cgst > 0) totalsRows.push(['CGST (' + (Number(docData.taxRate)/2) + '%)', rp(cgst)]);
-  if (sgst > 0) totalsRows.push(['SGST (' + (Number(docData.taxRate)/2) + '%)', rp(sgst)]);
-  if (igst > 0) totalsRows.push(['IGST (' + docData.taxRate + '%)', rp(igst)]);
-  const totalRowIdx = totalsRows.length;
-  totalsRows.push(['TOTAL', rp(total)]);
+  const trow = (label, val, bold = false, color = MD) => {
+    pdf.setFontSize(9); pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setTextColor(...color);
+    pdf.text(label, TX, y); pdf.text(val, W - MR, y, { align: 'right' }); y += 5.5;
+  };
+  trow('Subtotal', rp(subtotal));
+  if (discAmt > 0) trow('Discount', '- ' + rp(discAmt), false, [22, 163, 74]);
+  if (cgst > 0) trow('CGST (' + (Number(docData.taxRate)/2) + '%)', rp(cgst));
+  if (sgst > 0) trow('SGST (' + (Number(docData.taxRate)/2) + '%)', rp(sgst));
+  if (igst > 0) trow('IGST (' + docData.taxRate + '%)', rp(igst));
+  pdf.setDrawColor(...A); pdf.setLineWidth(0.5); pdf.line(TX, y, W - MR, y); y += 4;
+  trow('TOTAL', rp(total), true, A);
   if (!isQ && Number(docData.paidAmount) > 0) {
-    totalsRows.push(['Paid', '- ' + rp(Number(docData.paidAmount))]);
-    totalsRows.push(['Balance Due', rp(Math.max(0, total - Number(docData.paidAmount)))]);
+    trow('Paid', '- ' + rp(Number(docData.paidAmount)), false, [22, 163, 74]);
+    trow('Balance Due', rp(Math.max(0, total - Number(docData.paidAmount))), true, [220, 38, 38]);
   }
-  autoTable(pdf, {
-    startY: y,
-    body: totalsRows,
-    theme: 'grid',
-    margin: { left: TX, right: MR },
-    bodyStyles: { fontSize: 9, textColor: MD, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 }, lineColor: [210, 210, 210], lineWidth: 0.2 },
-    columnStyles: {
-      0: { halign: 'left', fontStyle: 'bold' },
-      1: { halign: 'right', textColor: DK },
-    },
-    didParseCell: (data) => {
-      if (data.row.index === totalRowIdx) {
-        data.cell.styles.fontStyle = 'bold'; data.cell.styles.fontSize = 10;
-        data.cell.styles.textColor = A; data.cell.styles.fillColor = [255, 251, 235];
-      }
-      if (discAmt > 0 && data.row.index === 1) data.cell.styles.textColor = [22, 163, 74];
-      if (!isQ && Number(docData.paidAmount) > 0 && data.row.index === totalsRows.length - 1) {
-        data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold';
-      }
-    },
-  });
-  y = pdf.lastAutoTable.finalY + 5;
+  y += 5;
 
   // ─── AMOUNT IN WORDS ───────────────────────────────────────────────────────
   needPage(12);
