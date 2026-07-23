@@ -793,16 +793,20 @@ function buildPDF(docData, type, ci, bankAccounts) {
   pdf.line(colMid, boxTop - 1, colMid, y);
   y += 3;
 
-  // ─── SUBJECT LINE (quotes only) ────────────────────────────────────────────
+  // ─── SUBJECT LINE (quotes only) — bordered cell ───────────────────────────
   if (isQ) {
-    needPage(10);
+    y += 4; // top gap from Bill To section
     const descList = (docData.items || []).map(i => i.description).filter(Boolean).join(', ');
-    pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
-    pdf.text('Sub: ', ML, y);
-    pdf.setFont('helvetica', 'normal');
-    const subText = pdf.splitTextToSize('Quotation for supply of ' + (descList || 'goods'), CW - 18);
-    pdf.text(subText, ML + 12, y);
-    y += subText.length * 4.5 + 5;
+    const subText = pdf.splitTextToSize('Quotation for supply of ' + (descList || 'goods'), CW - 22);
+    const subBoxH = subText.length * 5 + 7;
+    needPage(subBoxH + 4);
+    pdf.setDrawColor(200, 200, 200); pdf.setLineWidth(0.3);
+    pdf.rect(ML - 1, y, CW + 2, subBoxH);
+    pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
+    pdf.text('Sub:', ML + 3, y + 5);
+    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...DK);
+    subText.forEach((l, i) => pdf.text(l, ML + 16, y + 5 + i * 5));
+    y += subBoxH + 4;
   }
 
   // ─── ITEMS TABLE ───────────────────────────────────────────────────────────
