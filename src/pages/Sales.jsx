@@ -787,11 +787,11 @@ function buildPDF(docData, type, ci, bankAccounts) {
     ry2 += 5;
   });
 
-  y = Math.max(ly, ry2) + 5;
+  y = Math.max(ly, ry2) + 2;
   pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.3);
   pdf.rect(ML - 1, boxTop - 1, CW + 2, y - boxTop + 1);
   pdf.line(colMid, boxTop - 1, colMid, y);
-  y += 5;
+  y += 3;
 
   // ─── SUBJECT LINE (quotes only) ────────────────────────────────────────────
   if (isQ) {
@@ -822,14 +822,14 @@ function buildPDF(docData, type, ci, bankAccounts) {
     body: rows,
     theme: 'grid',
     margin: { left: ML, right: MR },
-    headStyles: { fillColor: A, textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', cellPadding: 3.5, lineColor: A, lineWidth: 0.3 },
+    headStyles: { fillColor: A, textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', cellPadding: 3, lineColor: A, lineWidth: 0.3 },
     bodyStyles: { fontSize: 8.5, textColor: DK, cellPadding: 3, lineColor: [180, 180, 180], lineWidth: 0.25 },
     alternateRowStyles: { fillColor: [255, 251, 235] },
     columnStyles: {
       0: { cellWidth: 8,  halign: 'center' },
       2: { cellWidth: 16, halign: 'center' },
       3: { cellWidth: 18, halign: 'center' },
-      4: { cellWidth: 16, halign: 'right'  },
+      4: { cellWidth: 16, halign: 'center' },
       5: { cellWidth: 28, halign: 'right'  },
       6: { cellWidth: 30, halign: 'right'  },
     },
@@ -838,29 +838,46 @@ function buildPDF(docData, type, ci, bankAccounts) {
   });
   y = pdf.lastAutoTable.finalY + 7;
 
-  // ─── TOTALS ────────────────────────────────────────────────────────────────
+  // ─── TOTALS (bordered table) ───────────────────────────────────────────────
   needPage(55);
-  const TW = 78, TX = W - MR - TW;
-  const trow = (label, val, bold = false, color = MD) => {
-    pdf.setFontSize(9); pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setTextColor(...color);
-    pdf.text(label, TX, y); pdf.text(val, W - MR, y, { align: 'right' }); y += 5.5;
-  };
-  trow('Subtotal', rp(subtotal));
-  if (discAmt > 0) trow('Discount', '- ' + rp(discAmt), false, [22, 163, 74]);
-  if (cgst > 0) trow('CGST (' + (Number(docData.taxRate)/2) + '%)', rp(cgst));
-  if (sgst > 0) trow('SGST (' + (Number(docData.taxRate)/2) + '%)', rp(sgst));
-  if (igst > 0) trow('IGST (' + docData.taxRate + '%)', rp(igst));
-  pdf.setDrawColor(...A); pdf.setLineWidth(0.5); pdf.line(TX, y, W - MR, y); y += 4;
-  trow('TOTAL', rp(total), true, A);
+  const TX = W - MR - 82;
+  const totalsRows = [['Subtotal', rp(subtotal)]];
+  if (discAmt > 0) totalsRows.push(['Discount', '- ' + rp(discAmt)]);
+  if (cgst > 0) totalsRows.push(['CGST (' + (Number(docData.taxRate)/2) + '%)', rp(cgst)]);
+  if (sgst > 0) totalsRows.push(['SGST (' + (Number(docData.taxRate)/2) + '%)', rp(sgst)]);
+  if (igst > 0) totalsRows.push(['IGST (' + docData.taxRate + '%)', rp(igst)]);
+  const totalRowIdx = totalsRows.length;
+  totalsRows.push(['TOTAL', rp(total)]);
   if (!isQ && Number(docData.paidAmount) > 0) {
-    trow('Paid', '- ' + rp(Number(docData.paidAmount)), false, [22, 163, 74]);
-    trow('Balance Due', rp(Math.max(0, total - Number(docData.paidAmount))), true, [220, 38, 38]);
+    totalsRows.push(['Paid', '- ' + rp(Number(docData.paidAmount))]);
+    totalsRows.push(['Balance Due', rp(Math.max(0, total - Number(docData.paidAmount)))]);
   }
-  y += 5;
+  autoTable(pdf, {
+    startY: y,
+    body: totalsRows,
+    theme: 'grid',
+    margin: { left: TX, right: MR },
+    bodyStyles: { fontSize: 9, textColor: MD, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 }, lineColor: [210, 210, 210], lineWidth: 0.2 },
+    columnStyles: {
+      0: { halign: 'left', fontStyle: 'bold' },
+      1: { halign: 'right', textColor: DK },
+    },
+    didParseCell: (data) => {
+      if (data.row.index === totalRowIdx) {
+        data.cell.styles.fontStyle = 'bold'; data.cell.styles.fontSize = 10;
+        data.cell.styles.textColor = A; data.cell.styles.fillColor = [255, 251, 235];
+      }
+      if (discAmt > 0 && data.row.index === 1) data.cell.styles.textColor = [22, 163, 74];
+      if (!isQ && Number(docData.paidAmount) > 0 && data.row.index === totalsRows.length - 1) {
+        data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+  y = pdf.lastAutoTable.finalY + 5;
 
   // ─── AMOUNT IN WORDS ───────────────────────────────────────────────────────
   needPage(12);
-  pdf.setFontSize(8); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(...MD);
+  pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
   const wl = pdf.splitTextToSize('Amount in words: ' + toWords(total), CW);
   pdf.text(wl, ML, y); y += wl.length * 4.5 + 6;
 
@@ -878,41 +895,40 @@ function buildPDF(docData, type, ci, bankAccounts) {
     ...(printBank.ifscCode      ? [['IFSC Code',   printBank.ifscCode]]      : []),
   ].filter(([,v]) => v) : [];
 
-  const sectionH = Math.max(printBank ? 10 + bLines.length * 5.5 + 6 : 0, 28);
-  needPage(sectionH + 8);
-  const sectionTop = y;
+  needPage(42);
+  const secTop = y;
+  let bankEnd = y;
 
   if (printBank) {
-    // title
     pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
     pdf.text('PAYMENT DETAILS', ML, y); y += 5;
-    const bankBoxTop = y;
-    // inner content — draw text first, then box around it
+    const bTop = y;
     const LBL_X = ML + 4; const VAL_X = ML + 38;
     bLines.forEach(([lbl, val]) => {
       pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
       pdf.text(lbl, LBL_X, y + 3);
       pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...DK);
       pdf.text(String(val), VAL_X, y + 3);
-      y += 5.5;
+      y += 5;
     });
-    y += 4;
-    // draw box around the rows
+    y += 3;
+    bankEnd = y;
     pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.25);
-    pdf.rect(ML - 1, bankBoxTop - 2, CW * 0.55 + 2, y - bankBoxTop + 2);
+    pdf.rect(ML - 1, bTop - 2, CW * 0.55 + 2, y - bTop + 2);
   }
 
-  // Signatory — right column, vertically centred to the section
+  // Signatory — right side, bottom-aligned with bank box
   const sw = CW * 0.35; const sx = W - MR - sw;
-  const sigMidY = sectionTop + sectionH * 0.5;
-  if (ci?.signature) { try { pdf.addImage(ci.signature, 'PNG', sx + 4, sigMidY - 12, sw - 8, 10); } catch(e) {} }
-  pdf.setDrawColor(...MD); pdf.setLineWidth(0.4); pdf.line(sx, sectionTop + sectionH - 10, W - MR, sectionTop + sectionH - 10);
+  const sigLineY = Math.max(bankEnd - 2, secTop + 18);
+  if (ci?.signature) { try { pdf.addImage(ci.signature, 'PNG', sx + 4, sigLineY - 13, sw - 8, 10); } catch(e) {} }
+  pdf.setDrawColor(...MD); pdf.setLineWidth(0.4);
+  pdf.line(sx, sigLineY, W - MR, sigLineY);
   pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
-  pdf.text('Authorised Signatory', sx + sw / 2, sectionTop + sectionH - 5, { align: 'center' });
+  pdf.text('Authorised Signatory', sx + sw / 2, sigLineY + 4.5, { align: 'center' });
   pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
-  pdf.text('For ' + coName, sx + sw / 2, sectionTop + sectionH - 1, { align: 'center' });
+  pdf.text('For ' + coName, sx + sw / 2, sigLineY + 8.5, { align: 'center' });
 
-  y = Math.max(y, sectionTop + sectionH) + 5;
+  y = Math.max(y, sigLineY + 10) + 5;
 
   // ─── NOTES ─────────────────────────────────────────────────────────────────
   if (docData.notes) {
