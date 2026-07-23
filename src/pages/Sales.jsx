@@ -1232,7 +1232,7 @@ function EnquiriesTab({ doAdd, onAddDone }) {
   function openAdd()       { setForm(freshEnquiry()); setEditing(null); setShowModal(true); }
   function openEdit(enq)   { setForm({ ...enq, enquiredItems: enq.enquiredItems?.length ? [...enq.enquiredItems] : [{ productId: '', customProduct: '', quantity: '' }] }); setEditing(enq); setShowModal(true); }
   function setItem(i,k,v)  { setForm(f => { const items = [...f.enquiredItems]; items[i] = { ...items[i], [k]: v }; return { ...f, enquiredItems: items }; }); }
-  function addItemRow()    { setForm(f => ({ ...f, enquiredItems: [...f.enquiredItems, { productId: '', customProduct: '', quantity: '' }] })); }
+  function addItemRow()    { setForm(f => ({ ...f, enquiredItems: [{ productId: '', customProduct: '', quantity: '' }, ...f.enquiredItems] })); }
   function removeItemRow(i){ setForm(f => ({ ...f, enquiredItems: f.enquiredItems.filter((_,idx) => idx !== i) })); }
 
   function save() {
@@ -1395,7 +1395,7 @@ function EnquiriesTab({ doAdd, onAddDone }) {
               <p className="text-xs font-bold text-gray-700">Products Enquired</p>
               <button type="button" onClick={addItemRow}
                 className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1 font-semibold flex items-center gap-1">
-                <Plus size={11}/> Add Row
+                <Plus size={11}/> Add Item
               </button>
             </div>
             <div className="space-y-2">
@@ -1405,14 +1405,15 @@ function EnquiriesTab({ doAdd, onAddDone }) {
                     <select
                       className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
                       value={it.productId}
-                      onChange={e => setItem(i, 'productId', e.target.value)}>
-                      <option value="">Select existing product…</option>
+                      onChange={e => { setItem(i, 'productId', e.target.value); if (e.target.value !== '__others__') setItem(i, 'customProduct', ''); }}>
+                      <option value="" disabled>— Select product —</option>
                       {(app.products||[]).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      <option value="__others__">Others (enter manually)</option>
                     </select>
                     <button type="button" onClick={() => removeItemRow(i)} className="text-red-400 p-1 shrink-0"><X size={14}/></button>
                   </div>
-                  {!it.productId && (
-                    <input type="text" placeholder="Or enter custom / new product…"
+                  {it.productId === '__others__' && (
+                    <input type="text" placeholder="Enter product name…"
                       className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
                       value={it.customProduct}
                       onChange={e => setItem(i, 'customProduct', e.target.value)} />

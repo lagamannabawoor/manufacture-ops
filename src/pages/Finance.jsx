@@ -697,7 +697,9 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
   }, [triggerAdd]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [orderForm, setOrderForm] = useState(() => ({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', includeGST: false, gstRate: '18', deliveryDate: '', notes: '' }));
+  const freshOrderItem = () => ({ productId: '', quantity: '', unitPrice: '' });
+  const freshOrderForm = () => ({ orderNumber: genOrderId(), customerName: '', customerPhone: '', items: [freshOrderItem()], includeGST: false, gstRate: '18', deliveryDate: '', notes: '' });
+  const [orderForm, setOrderForm] = useState(freshOrderForm);
   const [payForm, setPayForm] = useState({ date: todayISO(), orderId: '', amount: '', direction: 'received', bankAccountId: '', notes: '' });
   const [filterFrom, setFilterFrom] = useState(() => monthRange().from);
   const [filterTo, setFilterTo]     = useState(() => monthRange().to);
@@ -710,16 +712,34 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
   const isSuperAdmin = app.currentUser?.id === 'u_superadmin';
 
   function setOF(k, v) { setOrderForm(f => ({ ...f, [k]: v })); }
+  function setOI(i, k, v) { setOrderForm(f => { const items = [...f.items]; items[i] = { ...items[i], [k]: v }; return { ...f, items }; }); }
+  function addOrderItem() { setOrderForm(f => ({ ...f, items: [freshOrderItem(), ...f.items] })); }
+  function removeOrderItem(i) { setOrderForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) })); }
+  // Backward-compat helper — works for both old single-product and new multi-item orders
+  function getOrderItems(order) {
+    if (order.items?.length) return order.items;
+    return order.productId ? [{ productId: order.productId, quantity: order.quantity, unitPrice: order.unitPrice }] : [];
+  }
   function setPF(k, v) { setPayForm(f => ({ ...f, [k]: v })); }
   function setDF(k, v) { setDForm(f => ({ ...f, [k]: v })); }
 
   function saveOrder() {
-    if (!orderForm.customerName || !orderForm.productId || !orderForm.quantity) return alert('Customer, product, and quantity required.');
-    const baseTotal = Number(orderForm.quantity) * Number(orderForm.unitPrice || 0);
+    if (!orderForm.customerName) return alert('Customer name is required.');
+    const validItems = orderForm.items.filter(it => it.productId && it.quantity);
+    if (!validItems.length) return alert('Add at least one item with product and quantity.');
+    const baseTotal = validItems.reduce((s, it) => s + Number(it.quantity) * Number(it.unitPrice || 0), 0);
     const gstAmt = orderForm.includeGST ? Number((baseTotal * Number(orderForm.gstRate) / 100).toFixed(2)) : 0;
     const total = Number((baseTotal + gstAmt).toFixed(2));
-    app.addItem('orders', { ...orderForm, totalAmount: total, gstAmount: gstAmt, taxableAmount: baseTotal, status: 'pending' });
-    setOrderForm({ orderNumber: genOrderId(), customerName: '', customerPhone: '', productId: '', quantity: '', unitPrice: '', includeGST: false, gstRate: '18', deliveryDate: '', notes: '' });
+    const totalQty = validItems.reduce((s, it) => s + Number(it.quantity), 0);
+    app.addItem('orders', {
+      ...orderForm,
+      items: validItems,
+      productId: validItems[0].productId,
+      quantity: totalQty,
+      unitPrice: validItems[0].unitPrice,
+      totalAmount: total, gstAmount: gstAmt, taxableAmount: baseTotal, status: 'pending'
+    });
+    setOrderForm(freshOrderForm());
     setShowOrderModal(false);
   }
 
@@ -833,9 +853,12 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
                 </div>
 
                 {/* Product + delivery info */}
-                <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-50 pt-2 mb-2">
-                  <span>{product?.name || 'Unknown'} · Ordered: {fmt(order.quantity)} units</span>
-                  {order.deliveryDate && <span>Delivery: {fmtDate(order.deliveryDate)}</span>}
+                <div className="text-xs text-gray-500 border-t border-gray-50 pt-2 mb-2">
+                  {getOrderItems(order).map((it, idx) => {
+                    const pr = app.products.find(p => p.id === it.productId);
+                    return <div key={idx}>{pr?.name || 'Unknown'} · {fmt(it.quantity)} {pr?.unit || 'units'}{it.unitPrice ? ` @ ₹${fmt(it.unitPrice)}` : ''}</div>;
+                  })}
+                  {order.deliveryDate && <div className="mt-0.5">Delivery: {fmtDate(order.deliveryDate)}</div>}
                 </div>
 
                 {/* Dispatch summary bar */}
@@ -987,19 +1010,46 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
           </div>
           <Field label="Customer Name" required><input type="text" className={inputCls} placeholder="Customer name..." value={orderForm.customerName} onChange={e => setOF('customerName', e.target.value)} /></Field>
           <Field label="Phone"><input type="tel" className={inputCls} placeholder="Phone number..." value={orderForm.customerPhone} onChange={e => setOF('customerPhone', e.target.value)} /></Field>
-          <Field label="Product" required>
-            <select className={selectCls} value={orderForm.productId} onChange={e => setOF('productId', e.target.value)}>
-              <option value="">Select product...</option>
-              {app.productCategories.map(cat => (
-                <optgroup key={cat.id} label={cat.name}>
-                  {app.products.filter(p => p.categoryId === cat.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </optgroup>
+          {/* Multi-item section */}
+          <div className="mt-1">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-gray-700">Items</p>
+              <button type="button" onClick={addOrderItem}
+                className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1 font-semibold flex items-center gap-1">
+                <Plus size={11}/> Add Item
+              </button>
+            </div>
+            <div className="space-y-2">
+              {orderForm.items.map((it, i) => (
+                <div key={i} className="bg-gray-50 rounded-xl p-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <select className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
+                      value={it.productId} onChange={e => setOI(i, 'productId', e.target.value)}>
+                      <option value="" disabled>— Select product —</option>
+                      {app.productCategories.map(cat => (
+                        <optgroup key={cat.id} label={cat.name}>
+                          {app.products.filter(p => p.categoryId === cat.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {orderForm.items.length > 1 && (
+                      <button type="button" onClick={() => removeOrderItem(i)} className="text-red-400 p-1 shrink-0"><X size={14}/></button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="number" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" placeholder="Quantity" min="0"
+                      value={it.quantity} onChange={e => setOI(i, 'quantity', e.target.value)} />
+                    <input type="number" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" placeholder="Unit Price (₹)" min="0"
+                      value={it.unitPrice} onChange={e => setOI(i, 'unitPrice', e.target.value)} />
+                  </div>
+                  {it.quantity && it.unitPrice && (
+                    <p className="text-right text-[11px] font-semibold text-amber-700">
+                      = ₹{fmt(Number(it.quantity) * Number(it.unitPrice))}
+                    </p>
+                  )}
+                </div>
               ))}
-            </select>
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Quantity" required><input type="number" className={inputCls} placeholder="0" value={orderForm.quantity} onChange={e => setOF('quantity', e.target.value)} min="0" /></Field>
-            <Field label="Unit Price (₹)"><input type="number" className={inputCls} placeholder="0.00" value={orderForm.unitPrice} onChange={e => setOF('unitPrice', e.target.value)} min="0" /></Field>
+            </div>
           </div>
           {/* GST toggle */}
           <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mb-3">
@@ -1022,8 +1072,8 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
               </select>
             </Field>
           )}
-          {orderForm.quantity && orderForm.unitPrice && (() => {
-            const base = Number(orderForm.quantity) * Number(orderForm.unitPrice);
+          {orderForm.items.some(it => it.quantity && it.unitPrice) && (() => {
+            const base = orderForm.items.reduce((s, it) => s + Number(it.quantity||0) * Number(it.unitPrice||0), 0);
             const gst  = orderForm.includeGST ? base * Number(orderForm.gstRate) / 100 : 0;
             return (
               <div className="bg-blue-50 rounded-lg p-3 mb-3 text-sm space-y-1">
