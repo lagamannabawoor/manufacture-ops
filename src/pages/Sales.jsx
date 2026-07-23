@@ -420,9 +420,11 @@ function SalesDocModal({ type, initial, isEditing, products, productCategories, 
 
   function save() {
     if (!form.customerName) return alert('Customer name is required.');
+    if ((form._shipToDiffers || form.shipToAddress !== undefined) && form._shipToDiffers && !form.shipToAddress.trim()) return alert('Please enter the shipping address.');
     const hasItems = form.items.some(i => i.description && Number(i.quantity) > 0);
     if (!hasItems) return alert('Add at least one item with description and quantity.');
-    onSave({ ...form });
+    const { _shipToDiffers, ...toSave } = form;
+    onSave(toSave);
   }
 
   const titlePrefix = isEditing ? 'Edit' : 'New';
@@ -490,12 +492,12 @@ function SalesDocModal({ type, initial, isEditing, products, productCategories, 
             </Field>
             <div>
               <label className="flex items-center gap-2 cursor-pointer mb-2">
-                <input type="checkbox" className="accent-amber-700" checked={!!form.shipToAddress} onChange={e => set('shipToAddress', e.target.checked ? (form.customerAddress || '') : '')} />
+                <input type="checkbox" className="accent-amber-700" checked={!!form._shipToDiffers || !!form.shipToAddress} onChange={e => { set('_shipToDiffers', e.target.checked); if (!e.target.checked) set('shipToAddress', ''); }} />
                 <span className="text-xs font-medium text-gray-600">Ship to a different address</span>
               </label>
-              {!!form.shipToAddress && (
-                <Field label="Shipping Address">
-                  <textarea className={inputCls} rows={2} placeholder="Shipping address (if different)" value={form.shipToAddress} onChange={e => set('shipToAddress', e.target.value)} />
+              {(!!form._shipToDiffers || !!form.shipToAddress) && (
+                <Field label="Shipping Address" required>
+                  <textarea className={inputCls} rows={2} placeholder="Enter shipping / delivery address" value={form.shipToAddress} onChange={e => set('shipToAddress', e.target.value)} />
                 </Field>
               )}
             </div>
