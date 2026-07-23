@@ -732,42 +732,43 @@ function buildPDF(docData, type, ci, bankAccounts) {
   pdf.setDrawColor(...A); pdf.setLineWidth(0.6);
   pdf.line(ML, y, W - MR, y); y += 6;
 
-  // ─── TWO-COLUMN: BILL TO (left) | QUOTE REFERENCE (right) ────────────────
+  // ─── BILL TO | SHIP TO (opt) | REFERENCE ─────────────────────────────────
   needPage(38);
-  const colMid = ML + CW * 0.55;
+  const hasShip = !!docData.shipToAddress;
+  // Column divider positions
+  const div1 = hasShip ? ML + CW * 0.34 : ML + CW * 0.55;
+  const div2 = hasShip ? ML + CW * 0.64 : null;
   const boxTop = y;
-  const leftW  = CW * 0.55 - 4;
-  const rightW = CW * 0.45 - 4;
-  const rightX = colMid + 4;
+  const BP = 4;
 
-  const BP = 4; // inner cell left padding
-  const innerW = leftW - BP - 2; // usable text width inside left cell
-
-  // Left — BILL TO
+  // ── BILL TO ──
+  const billW = div1 - ML - BP - 2;
   pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
   pdf.text('BILL TO', ML + BP, y + 4.5);
   let ly = y + 9;
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
-  pdf.text(pdf.splitTextToSize(docData.customerName || '—', innerW)[0], ML + BP, ly); ly += 5;
+  pdf.text(pdf.splitTextToSize(docData.customerName || '—', billW)[0], ML + BP, ly); ly += 5;
   pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
   if (docData.customerPhone) { pdf.text(docData.customerPhone, ML + BP, ly); ly += 4; }
   if (docData.customerAddress) {
-    pdf.splitTextToSize(docData.customerAddress, innerW).forEach(l => { pdf.text(l, ML + BP, ly); ly += 4; });
+    pdf.splitTextToSize(docData.customerAddress, billW).forEach(l => { pdf.text(l, ML + BP, ly); ly += 4; });
   }
   if (docData.customerGST) { pdf.setFont('helvetica','bold'); pdf.text('GSTIN: ' + docData.customerGST, ML + BP, ly); pdf.setFont('helvetica','normal'); ly += 4; }
-  if (docData.placeOfSupply) { pdf.text('Place of Supply: ' + docData.placeOfSupply, ML + BP, ly); ly += 4; }
 
-  // SHIP TO (if different from billing)
-  if (docData.shipToAddress) {
-    ly += 2;
-    pdf.setDrawColor(210, 210, 210); pdf.setLineWidth(0.2); pdf.line(ML + BP, ly, colMid - 4, ly); ly += 4;
+  // ── SHIP TO (middle column, only when hasShip) ──
+  let sy = y;
+  if (hasShip) {
+    const shipX = div1 + BP;
+    const shipW = div2 - div1 - BP - 2;
     pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
-    pdf.text('SHIP TO', ML + BP, ly); ly += 4.5;
+    pdf.text('SHIP TO', shipX, sy + 4.5); sy += 9;
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
-    pdf.splitTextToSize(docData.shipToAddress, innerW).forEach(l => { pdf.text(l, ML + BP, ly); ly += 4; });
+    pdf.splitTextToSize(docData.shipToAddress, shipW).forEach(l => { pdf.text(l, shipX, sy); sy += 4; });
   }
 
-  // Right — REFERENCE
+  // ── REFERENCE (right column) ──
+  const refX = (hasShip ? div2 : div1) + BP;
+  const refValX = W - MR - 3;
   const refRows = [
     [isQ ? 'Quotation No.' : 'Invoice No.', docNo],
     ['Date', docData.date || ''],
@@ -778,19 +779,20 @@ function buildPDF(docData, type, ci, bankAccounts) {
   ];
   let ry2 = y + 4;
   pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
-  pdf.text('REFERENCE', rightX, ry2); ry2 += 5.5;
+  pdf.text('REFERENCE', refX, ry2); ry2 += 5.5;
   refRows.forEach(([lbl, val]) => {
     pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
-    pdf.text(lbl + ':', rightX, ry2);
+    pdf.text(lbl + ':', refX, ry2);
     pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...DK);
-    pdf.text(String(val), W - MR - 3, ry2, { align: 'right' });
+    pdf.text(String(val), refValX, ry2, { align: 'right' });
     ry2 += 5;
   });
 
-  y = Math.max(ly, ry2) + 2;
+  y = Math.max(ly, sy, ry2) + 2;
   pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.3);
   pdf.rect(ML - 1, boxTop - 1, CW + 2, y - boxTop + 1);
-  pdf.line(colMid, boxTop - 1, colMid, y);
+  pdf.line(div1, boxTop - 1, div1, y);
+  if (hasShip) pdf.line(div2, boxTop - 1, div2, y);
   y += 3;
 
   // ─── SUBJECT LINE (quotes only) — bordered cell ───────────────────────────
