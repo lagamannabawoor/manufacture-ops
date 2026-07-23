@@ -206,6 +206,18 @@ export function AppProvider({ children }) {
     loadFromFirestore().then(remote => {
       if (remote) {
         skipFbRef.current = true;
+        // ── Migrate product units/HSN (one-time fix for existing data) ──
+        if (remote.products?.length) {
+          let changed = false;
+          remote.products = remote.products.map(p => {
+            let updated = { ...p };
+            if (!updated.hsnCode) { updated.hsnCode = '6810'; changed = true; }
+            const isPaver = /paver|paving|parking tile|interlocking/i.test(updated.name || '');
+            if (isPaver && updated.unit === 'pieces') { updated.unit = 'sqft'; changed = true; }
+            return updated;
+          });
+          if (changed) saveToFirestore({ ...SEED, ...remote }, new Set(['products'])).catch(() => {});
+        }
         setData({ ...SEED, ...remote });
       } else {
         // First time: push local seed/data to Firestore
