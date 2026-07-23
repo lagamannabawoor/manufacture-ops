@@ -109,7 +109,7 @@ function freshQuote() {
     customerName: '', customerPhone: '', customerAddress: '', customerGST: '',
     items: [freshItem()], taxType: 'cgst_sgst', taxRate: '18',
     discountValue: '', discountType: 'flat', notes: '', terms: STANDARD_TERMS,
-    paymentAccountId: '', status: 'draft' };
+    paymentAccountId: '', shipToAddress: '', status: 'draft' };
 }
 function freshInvoice(fromQuote) {
   const today = todayISO();
@@ -117,7 +117,7 @@ function freshInvoice(fromQuote) {
     quoteRef: '', customerName: '', customerPhone: '', customerAddress: '', customerGST: '',
     placeOfSupply: '', items: [freshItem()], taxType: 'cgst_sgst', taxRate: '18',
     discountValue: '', discountType: 'flat', paymentTerms: 'due_on_delivery', notes: '',
-    paymentAccountId: '', status: 'draft', paidAmount: '' };
+    paymentAccountId: '', shipToAddress: '', status: 'draft', paidAmount: '' };
   if (!fromQuote) return base;
   return { ...base, quoteRef: fromQuote.quoteNumber, customerName: fromQuote.customerName,
     customerPhone: fromQuote.customerPhone, customerAddress: fromQuote.customerAddress,
@@ -485,9 +485,20 @@ function SalesDocModal({ type, initial, isEditing, products, productCategories, 
                 <input className={inputCls} placeholder="22AAAAA..." value={form.customerGST} onChange={e => set('customerGST', e.target.value)} />
               </Field>
             </div>
-            <Field label="Address">
+            <Field label="Billing Address">
               <textarea className={inputCls} rows={2} placeholder="Street, City, State, Pincode" value={form.customerAddress} onChange={e => set('customerAddress', e.target.value)} />
             </Field>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <input type="checkbox" className="accent-amber-700" checked={!!form.shipToAddress} onChange={e => set('shipToAddress', e.target.checked ? (form.customerAddress || '') : '')} />
+                <span className="text-xs font-medium text-gray-600">Ship to a different address</span>
+              </label>
+              {!!form.shipToAddress && (
+                <Field label="Shipping Address">
+                  <textarea className={inputCls} rows={2} placeholder="Shipping address (if different)" value={form.shipToAddress} onChange={e => set('shipToAddress', e.target.value)} />
+                </Field>
+              )}
+            </div>
             {!isQuote && (
               <Field label="Place of Supply">
                 <input className={inputCls} placeholder="State name (for IGST)" value={form.placeOfSupply} onChange={e => set('placeOfSupply', e.target.value)} />
@@ -727,19 +738,32 @@ function buildPDF(docData, type, ci, bankAccounts) {
   const rightW = CW * 0.45 - 4;
   const rightX = colMid + 4;
 
+  const BP = 4; // inner cell left padding
+  const innerW = leftW - BP - 2; // usable text width inside left cell
+
   // Left — BILL TO
   pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
-  pdf.text('BILL TO', ML, y + 4.5);
+  pdf.text('BILL TO', ML + BP, y + 4.5);
   let ly = y + 9;
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
-  pdf.text(pdf.splitTextToSize(docData.customerName || '—', leftW)[0], ML, ly); ly += 5;
+  pdf.text(pdf.splitTextToSize(docData.customerName || '—', innerW)[0], ML + BP, ly); ly += 5;
   pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
-  if (docData.customerPhone) { pdf.text(docData.customerPhone, ML, ly); ly += 4; }
+  if (docData.customerPhone) { pdf.text(docData.customerPhone, ML + BP, ly); ly += 4; }
   if (docData.customerAddress) {
-    pdf.splitTextToSize(docData.customerAddress, leftW).forEach(l => { pdf.text(l, ML, ly); ly += 4; });
+    pdf.splitTextToSize(docData.customerAddress, innerW).forEach(l => { pdf.text(l, ML + BP, ly); ly += 4; });
   }
-  if (docData.customerGST) { pdf.setFont('helvetica','bold'); pdf.text('GSTIN: ' + docData.customerGST, ML, ly); pdf.setFont('helvetica','normal'); ly += 4; }
-  if (docData.placeOfSupply) { pdf.text('Place of Supply: ' + docData.placeOfSupply, ML, ly); ly += 4; }
+  if (docData.customerGST) { pdf.setFont('helvetica','bold'); pdf.text('GSTIN: ' + docData.customerGST, ML + BP, ly); pdf.setFont('helvetica','normal'); ly += 4; }
+  if (docData.placeOfSupply) { pdf.text('Place of Supply: ' + docData.placeOfSupply, ML + BP, ly); ly += 4; }
+
+  // SHIP TO (if different from billing)
+  if (docData.shipToAddress) {
+    ly += 2;
+    pdf.setDrawColor(210, 210, 210); pdf.setLineWidth(0.2); pdf.line(ML + BP, ly, colMid - 4, ly); ly += 4;
+    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
+    pdf.text('SHIP TO', ML + BP, ly); ly += 4.5;
+    pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+    pdf.splitTextToSize(docData.shipToAddress, innerW).forEach(l => { pdf.text(l, ML + BP, ly); ly += 4; });
+  }
 
   // Right — REFERENCE
   const refRows = [
@@ -757,7 +781,7 @@ function buildPDF(docData, type, ci, bankAccounts) {
     pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
     pdf.text(lbl + ':', rightX, ry2);
     pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...DK);
-    pdf.text(String(val), rightX + rightW, ry2, { align: 'right' });
+    pdf.text(String(val), W - MR - 3, ry2, { align: 'right' });
     ry2 += 5;
   });
 
