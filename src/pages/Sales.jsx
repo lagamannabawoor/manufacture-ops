@@ -108,7 +108,8 @@ function freshQuote() {
   return { quoteNumber: genDocId('QT'), date: today, validUntil: addDays(today, 30),
     customerName: '', customerPhone: '', customerAddress: '', customerGST: '',
     items: [freshItem()], taxType: 'cgst_sgst', taxRate: '18',
-    discountValue: '', discountType: 'flat', notes: '', terms: STANDARD_TERMS, status: 'draft' };
+    discountValue: '', discountType: 'flat', notes: '', terms: STANDARD_TERMS,
+    paymentAccountId: '', status: 'draft' };
 }
 function freshInvoice(fromQuote) {
   const today = todayISO();
@@ -116,7 +117,7 @@ function freshInvoice(fromQuote) {
     quoteRef: '', customerName: '', customerPhone: '', customerAddress: '', customerGST: '',
     placeOfSupply: '', items: [freshItem()], taxType: 'cgst_sgst', taxRate: '18',
     discountValue: '', discountType: 'flat', paymentTerms: 'due_on_delivery', notes: '',
-    status: 'draft', paidAmount: '' };
+    paymentAccountId: '', status: 'draft', paidAmount: '' };
   if (!fromQuote) return base;
   return { ...base, quoteRef: fromQuote.quoteNumber, customerName: fromQuote.customerName,
     customerPhone: fromQuote.customerPhone, customerAddress: fromQuote.customerAddress,
@@ -380,9 +381,15 @@ function DocCard({ docNo, customerName, date, statusMap, status, totalLabel, sub
 
 // ── Create / Edit form modal ─────────────────────────────────────────────────
 function SalesDocModal({ type, initial, isEditing, products, productCategories, onClose, onSave }) {
+  const app = useApp();
   const isQuote = type === 'quote';
+  const payBanks = (app.bankAccounts || []).filter(b => b.type !== 'cash' && (b.accountNumber || b.ifscCode || b.branchName));
   const defaultForm = isQuote ? freshQuote() : freshInvoice();
-  const [form, setForm] = useState(() => initial ? { ...defaultForm, ...initial } : defaultForm);
+  const [form, setForm] = useState(() => {
+    const base = initial ? { ...defaultForm, ...initial } : defaultForm;
+    if (!base.paymentAccountId && payBanks.length === 1) base.paymentAccountId = payBanks[0].id;
+    return base;
+  });
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -564,6 +571,20 @@ function SalesDocModal({ type, initial, isEditing, products, productCategories, 
                 <select className={selectCls} value={form.paymentTerms} onChange={e => set('paymentTerms', e.target.value)}>
                   {PAYMENT_TERMS_OPTIONS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                 </select>
+              </Field>
+            )}
+            {payBanks.length > 0 && (
+              <Field label="Payment Account (shown on document)">
+                {payBanks.length === 1 ? (
+                  <div className="text-xs bg-green-50 border border-green-100 rounded-xl px-3 py-2 text-green-800 font-medium">
+                    ✓ {payBanks[0].accountHolder || payBanks[0].name} — {payBanks[0].bankName}
+                  </div>
+                ) : (
+                  <select className={selectCls} value={form.paymentAccountId} onChange={e => set('paymentAccountId', e.target.value)}>
+                    <option value="">— No payment details on document —</option>
+                    {payBanks.map(b => <option key={b.id} value={b.id}>{b.name} — {b.bankName}</option>)}
+                  </select>
+                )}
               </Field>
             )}
             <Field label="Notes">
@@ -831,7 +852,10 @@ function buildPDF(docData, type, ci, bankAccounts) {
   pdf.text(wl, ML, y); y += wl.length * 4.5 + 6;
 
   // ─── BANK PAYMENT DETAILS ──────────────────────────────────────────────────
-  const printBank = (bankAccounts || []).find(b => b.type !== 'cash' && (b.accountNumber || b.ifscCode));
+  const payBanksList = (bankAccounts || []).filter(b => b.type !== 'cash' && (b.accountNumber || b.ifscCode || b.branchName));
+  const printBank = docData.paymentAccountId
+    ? payBanksList.find(b => b.id === docData.paymentAccountId)
+    : payBanksList[0];
   if (printBank) {
     needPage(28);
     pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
