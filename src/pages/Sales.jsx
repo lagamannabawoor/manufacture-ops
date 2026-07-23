@@ -635,7 +635,7 @@ function blobToBase64(blob) {
   });
 }
 
-function buildPDF(docData, type, ci) {
+function buildPDF(docData, type, ci, bankAccounts) {
   const coName    = ci?.name    || 'UrbanMud Bricks and Blocks';
   const coTagline = ci?.tagline || '';
   const coAddress = ci?.address || 'Bhaktharahalli, Poojeana Agrahara,\nnear Hoskote, Bangalore - 562114';
@@ -708,22 +708,68 @@ function buildPDF(docData, type, ci) {
 
   y = Math.max(y, ry) + 4;
   pdf.setDrawColor(...A); pdf.setLineWidth(0.6);
-  pdf.line(ML, y, W - MR, y); y += 7;
+  pdf.line(ML, y, W - MR, y); y += 6;
 
-  // ─── BILL TO ───────────────────────────────────────────────────────────────
-  needPage(30);
-  pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
-  pdf.text('BILL TO', ML, y); y += 4.5;
+  // ─── TWO-COLUMN: BILL TO (left) | QUOTE REFERENCE (right) ────────────────
+  needPage(38);
+  const colMid = ML + CW * 0.55;
+  const boxTop = y;
+  const leftW  = CW * 0.55 - 4;
+  const rightW = CW * 0.45 - 4;
+  const rightX = colMid + 4;
+
+  // Left — BILL TO
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
+  pdf.text('BILL TO', ML, y + 4.5);
+  let ly = y + 9;
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
-  pdf.text(docData.customerName || '—', ML, y); y += 5;
-  pdf.setFontSize(8.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
-  if (docData.customerPhone) { pdf.text(docData.customerPhone, ML, y); y += 4; }
+  pdf.text(pdf.splitTextToSize(docData.customerName || '—', leftW)[0], ML, ly); ly += 5;
+  pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...MD);
+  if (docData.customerPhone) { pdf.text(docData.customerPhone, ML, ly); ly += 4; }
   if (docData.customerAddress) {
-    docData.customerAddress.split('\n').forEach(l => { pdf.text(l, ML, y); y += 4; });
+    pdf.splitTextToSize(docData.customerAddress, leftW).forEach(l => { pdf.text(l, ML, ly); ly += 4; });
   }
-  if (docData.customerGST) { pdf.text('GSTIN: ' + docData.customerGST, ML, y); y += 4; }
-  if (docData.placeOfSupply) { pdf.text('Place of Supply: ' + docData.placeOfSupply, ML, y); y += 4; }
-  y += 4;
+  if (docData.customerGST) { pdf.setFont('helvetica','bold'); pdf.text('GSTIN: ' + docData.customerGST, ML, ly); pdf.setFont('helvetica','normal'); ly += 4; }
+  if (docData.placeOfSupply) { pdf.text('Place of Supply: ' + docData.placeOfSupply, ML, ly); ly += 4; }
+
+  // Right — QUOTE REFERENCE BOX
+  const refRows = [
+    [isQ ? 'Quotation No.' : 'Invoice No.', docNo],
+    ['Date', docData.date || ''],
+    ...(isQ && docData.validUntil ? [['Valid Until', docData.validUntil]] : []),
+    ...(!isQ && docData.dueDate ? [['Due Date', docData.dueDate]] : []),
+    ...(payLabel ? [['Payment Terms', payLabel]] : []),
+    ...(docData.placeOfSupply ? [['Place of Supply', docData.placeOfSupply]] : []),
+  ];
+  let ry2 = y + 4;
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
+  pdf.text('REFERENCE', rightX, ry2); ry2 += 5.5;
+  refRows.forEach(([lbl, val]) => {
+    pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
+    pdf.text(lbl + ':', rightX, ry2);
+    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...DK);
+    pdf.text(String(val), rightX + rightW, ry2, { align: 'right' });
+    ry2 += 5;
+  });
+
+  y = Math.max(ly, ry2) + 5;
+  // Draw the box around both columns
+  pdf.setDrawColor(...[180,180,180]); pdf.setLineWidth(0.3);
+  pdf.rect(ML - 1, boxTop - 1, CW + 2, y - boxTop + 1);
+  pdf.line(colMid, boxTop - 1, colMid, y);
+  y += 5;
+
+  // ─── SUBJECT LINE (quotes only) ────────────────────────────────────────────
+  if (isQ) {
+    needPage(10);
+    const descList = (docData.items || []).map(i => i.description).filter(Boolean).join(', ');
+    pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...DK);
+    pdf.text('Sub: ', ML, y);
+    pdf.setFont('helvetica', 'normal');
+    const subText = pdf.splitTextToSize('Quotation for supply of ' + (descList || 'goods'), CW - 18);
+    pdf.text(subText, ML + 12, y);
+    y += subText.length * 4.5 + 5;
+  }
 
   // ─── ITEMS TABLE ───────────────────────────────────────────────────────────
   const rows = (docData.items || []).map((it, i) => [
@@ -782,7 +828,33 @@ function buildPDF(docData, type, ci) {
   needPage(12);
   pdf.setFontSize(8); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(...MD);
   const wl = pdf.splitTextToSize('Amount in words: ' + toWords(total), CW);
-  pdf.text(wl, ML, y); y += wl.length * 4.5 + 5;
+  pdf.text(wl, ML, y); y += wl.length * 4.5 + 6;
+
+  // ─── BANK PAYMENT DETAILS ──────────────────────────────────────────────────
+  const printBank = (bankAccounts || []).find(b => b.type !== 'cash' && (b.accountNumber || b.ifscCode));
+  if (printBank) {
+    needPage(28);
+    pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...A);
+    pdf.text('PAYMENT DETAILS', ML, y); y += 5;
+    const bankBoxTop = y;
+    const bLines = [
+      ['Account Name', printBank.accountHolder || coName],
+      ['Bank', printBank.bankName || ''],
+      ...(printBank.branchName ? [['Branch', printBank.branchName]] : []),
+      ...(printBank.accountNumber ? [['Account No.', printBank.accountNumber]] : []),
+      ...(printBank.ifscCode ? [['IFSC Code', printBank.ifscCode]] : []),
+    ].filter(([,v]) => v);
+    bLines.forEach(([lbl, val]) => {
+      pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...MD);
+      pdf.text(lbl + ': ', ML + 2, y);
+      pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...DK);
+      pdf.text(String(val), ML + 38, y);
+      y += 4.5;
+    });
+    pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.25);
+    pdf.rect(ML - 1, bankBoxTop - 3, CW * 0.55 + 2, y - bankBoxTop + 5);
+    y += 5;
+  }
 
   // ─── NOTES ─────────────────────────────────────────────────────────────────
   if (docData.notes) {
@@ -849,7 +921,7 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
   async function handleDownload() {
     setPdfBusy('download');
     try {
-      const pdf = buildPDF(doc, type, ci);
+      const pdf = buildPDF(doc, type, ci, app.bankAccounts);
       pdf.save(`${docNo}.pdf`);
     } catch (e) { alert('Could not generate PDF: ' + e.message); }
     finally { setPdfBusy(null); }
@@ -858,7 +930,7 @@ function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdi
   async function handleShare() {
     setPdfBusy('share');
     try {
-      const pdf = buildPDF(doc, type, ci);
+      const pdf = buildPDF(doc, type, ci, app.bankAccounts);
       const blob = pdf.output('blob');
       const filename = `${docNo}.pdf`;
 
