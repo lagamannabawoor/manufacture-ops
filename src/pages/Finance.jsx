@@ -707,7 +707,7 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
   const [filterCustomer, setFilterCustomer] = useState('');
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [dispatchFor, setDispatchFor] = useState(null);
-  const [dForm, setDForm] = useState({ date: todayISO(), quantity: '', notes: '' });
+  const [dForm, setDForm] = useState({ date: todayISO(), itemIndex: 0, quantity: '', notes: '' });
 
   const isSuperAdmin = app.currentUser?.id === 'u_superadmin';
 
@@ -753,23 +753,35 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
   function saveDispatch() {
     if (!dForm.quantity || Number(dForm.quantity) <= 0) return alert('Quantity required.');
     app.addItem('orderDispatches', { ...dForm, orderId: dispatchFor.id });
-    setDForm({ date: todayISO(), quantity: '', notes: '' });
+    setDForm({ date: todayISO(), itemIndex: 0, quantity: '', notes: '' });
     setShowDispatchModal(false);
   }
 
   function computeOrder(order) {
     const dispatches = (app.orderDispatches || []).filter(d => d.orderId === order.id);
     const payments   = (app.orderPayments   || []).filter(p => p.orderId === order.id);
-    const totalOrdered   = Number(order.quantity || 0);
-    const totalDispatched = dispatches.reduce((s, d) => s + Number(d.quantity || 0), 0);
+    const orderItems = getOrderItems(order);
+    // Per-item dispatch tracking (backward compat: dispatches with no itemIndex count to idx 0)
+    const itemStats = orderItems.map((item, idx) => {
+      const itemDisp = dispatches.filter(d =>
+        d.itemIndex === idx || (d.itemIndex === undefined && idx === 0)
+      );
+      const dispatched = itemDisp.reduce((s, d) => s + Number(d.quantity || 0), 0);
+      const ordered    = Number(item.quantity || 0);
+      const product    = app.products.find(p => p.id === item.productId);
+      return { idx, item, product, ordered, dispatched, itemDisp };
+    });
+    const totalOrdered    = itemStats.reduce((s, it) => s + it.ordered, 0);
+    const totalDispatched = itemStats.reduce((s, it) => s + it.dispatched, 0);
     const received = payments.filter(p => p.direction === 'received').reduce((s, p) => s + Number(p.amount || 0), 0);
     const balance  = Number(order.totalAmount || 0) - received;
-    const materialStatus = totalDispatched === 0 ? 'yet_to_dispatch'
-      : totalDispatched < totalOrdered ? 'partial' : 'full';
+    const allFull  = itemStats.every(it => it.dispatched >= it.ordered && it.ordered > 0);
+    const anyDisp  = itemStats.some(it => it.dispatched > 0);
+    const materialStatus = !anyDisp ? 'yet_to_dispatch' : allFull ? 'full' : 'partial';
     const autoStatus = materialStatus === 'full' && balance <= 0 ? 'completed'
       : materialStatus !== 'yet_to_dispatch' ? 'in_progress' : 'pending';
     const effectiveStatus = order.manualStatus || autoStatus;
-    return { dispatches, payments, totalDispatched, received, balance, materialStatus, autoStatus, effectiveStatus };
+    return { dispatches, payments, totalDispatched, totalOrdered, received, balance, materialStatus, autoStatus, effectiveStatus, itemStats };
   }
 
   const [viewing, setViewing] = useState(null);
@@ -825,8 +837,7 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
       ) : (
         <div className="space-y-3">
           {sorted.map(order => {
-            const product = app.products.find(p => p.id === order.productId);
-            const { dispatches, payments, totalDispatched, received, balance, materialStatus, effectiveStatus } = computeOrder(order);
+            const { dispatches, payments, totalDispatched, totalOrdered, received, balance, materialStatus, effectiveStatus, itemStats } = computeOrder(order);
             return (
               <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
 
@@ -861,35 +872,39 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
                   {order.deliveryDate && <div className="mt-0.5">Delivery: {fmtDate(order.deliveryDate)}</div>}
                 </div>
 
-                {/* Dispatch summary bar */}
-                <div className="bg-gray-50 rounded-lg px-3 py-2 mb-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-gray-600">Material Dispatched</span>
-                    <span className="text-xs font-bold text-gray-800">{fmt(totalDispatched)} / {fmt(order.quantity)} units</span>
-                  </div>
-                  {Number(order.quantity) > 0 && (
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div className="bg-amber-600 h-1.5 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, (totalDispatched / Number(order.quantity)) * 100)}%` }} />
-                    </div>
-                  )}
-                  {dispatches.length > 0 && (
-                    <div className="mt-2 space-y-0.5">
-                      {dispatches.slice().reverse().slice(0, 3).map(d => (
-                        <div key={d.id} className="flex items-center justify-between text-[11px] text-gray-500">
-                          <span>{fmtDate(d.date)}{d.notes ? ` · ${d.notes}` : ''}</span>
-                          <span className="font-semibold text-gray-700">+{fmt(d.quantity)} units</span>
+                {/* Per-item dispatch progress */}
+                <div className="bg-gray-50 rounded-lg px-3 py-2 mb-2 space-y-2">
+                  <span className="text-xs font-semibold text-gray-600">Material Dispatched</span>
+                  {itemStats.map(({ idx, product, ordered, dispatched, itemDisp }) => (
+                    <div key={idx}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[11px] text-gray-600 font-medium">{product?.name || 'Unknown'}</span>
+                        <span className="text-[11px] font-bold text-gray-700">{fmt(dispatched)} / {fmt(ordered)} {product?.unit || 'units'}</span>
+                      </div>
+                      {ordered > 0 && (
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div className={`h-1.5 rounded-full transition-all ${dispatched >= ordered ? 'bg-green-500' : 'bg-amber-500'}`}
+                            style={{ width: `${Math.min(100, (dispatched / ordered) * 100)}%` }} />
                         </div>
-                      ))}
-                      {dispatches.length > 3 && <p className="text-[10px] text-gray-400">{dispatches.length - 3} more earlier…</p>}
+                      )}
+                      {itemDisp.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {itemDisp.slice().reverse().slice(0, 2).map(d => (
+                            <div key={d.id} className="flex items-center justify-between text-[10px] text-gray-400">
+                              <span>{fmtDate(d.date)}{d.notes ? ` · ${d.notes}` : ''}</span>
+                              <span>+{fmt(d.quantity)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
 
                 {/* Consolidated Bill button — completed orders only */}
                 {effectiveStatus === 'completed' && (
                   <button
-                    onClick={() => setViewingConsolidated({ order, dispatches, payments, product })}
+                    onClick={() => { const firstProd = app.products.find(p => p.id === (itemStats[0]?.item?.productId || order.productId)); setViewingConsolidated({ order, dispatches, payments, product: firstProd }); }}
                     className="w-full flex items-center justify-center gap-1.5 bg-amber-700 text-white text-xs font-semibold px-3 py-2 rounded-lg mb-2 active:scale-95 transition-transform"
                   >
                     <FileText size={13} /> Consolidated Delivery Invoice
@@ -899,7 +914,7 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
                 {/* Action buttons */}
                 <div className="flex gap-2 mb-2 flex-wrap">
                   <button
-                    onClick={() => { setDispatchFor(order); setDForm({ date: todayISO(), quantity: '', notes: '' }); setShowDispatchModal(true); }}
+                    onClick={() => { setDispatchFor(order); setDForm({ date: todayISO(), itemIndex: 0, quantity: '', notes: '' }); setShowDispatchModal(true); }}
                     className="flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-200"
                   >
                     <Truck size={12} /> Add Dispatch
@@ -1123,18 +1138,37 @@ export function OrdersTab({ onCreateInvoice, triggerAdd, onTriggerConsumed }) {
         </Modal>
       )}
 
-      {showDispatchModal && dispatchFor && (
-        <Modal title={`Add Dispatch — ${dispatchFor.customerName}`} onClose={() => setShowDispatchModal(false)}>
-          <div className="bg-amber-50 rounded-lg px-3 py-2 mb-3 text-xs text-amber-800">
-            <p className="font-semibold">{app.products.find(p => p.id === dispatchFor.productId)?.name}</p>
-            <p>Ordered: {fmt(dispatchFor.quantity)} units · Already dispatched: {fmt((app.orderDispatches||[]).filter(d=>d.orderId===dispatchFor.id).reduce((s,d)=>s+Number(d.quantity||0),0))} units</p>
-          </div>
-          <Field label="Date" required><input type="date" className={inputCls} value={dForm.date} onChange={e => setDF('date', e.target.value)} /></Field>
-          <Field label="Quantity Dispatched" required><input type="number" className={inputCls} placeholder="0" min="1" value={dForm.quantity} onChange={e => setDF('quantity', e.target.value)} /></Field>
-          <Field label="Notes"><textarea className={inputCls} rows={2} placeholder="e.g. 1st batch, truck no..." value={dForm.notes} onChange={e => setDF('notes', e.target.value)} /></Field>
-          <SaveBtn onClick={saveDispatch} label="Save Dispatch" />
-        </Modal>
-      )}
+      {showDispatchModal && dispatchFor && (() => {
+        const dispItems = getOrderItems(dispatchFor);
+        const selIdx    = Number(dForm.itemIndex) || 0;
+        const selItem   = dispItems[selIdx];
+        const selProd   = selItem ? app.products.find(p => p.id === selItem.productId) : null;
+        const alreadyDisp = (app.orderDispatches||[]).filter(d => d.orderId === dispatchFor.id &&
+          (d.itemIndex === selIdx || (d.itemIndex === undefined && selIdx === 0))
+        ).reduce((s,d) => s + Number(d.quantity||0), 0);
+        return (
+          <Modal title={`Add Dispatch — ${dispatchFor.customerName}`} onClose={() => setShowDispatchModal(false)}>
+            {dispItems.length > 1 && (
+              <Field label="Select Item">
+                <select className={selectCls} value={dForm.itemIndex} onChange={e => setDF('itemIndex', Number(e.target.value))}>
+                  {dispItems.map((it, i) => {
+                    const pr = app.products.find(p => p.id === it.productId);
+                    return <option key={i} value={i}>{pr?.name || 'Item ' + (i+1)}</option>;
+                  })}
+                </select>
+              </Field>
+            )}
+            <div className="bg-amber-50 rounded-lg px-3 py-2 mb-3 text-xs text-amber-800">
+              <p className="font-semibold">{selProd?.name || 'Unknown'}</p>
+              <p>Ordered: {fmt(selItem?.quantity)} {selProd?.unit || 'units'} · Already dispatched: {fmt(alreadyDisp)}</p>
+            </div>
+            <Field label="Date" required><input type="date" className={inputCls} value={dForm.date} onChange={e => setDF('date', e.target.value)} /></Field>
+            <Field label="Quantity Dispatched" required><input type="number" className={inputCls} placeholder="0" min="1" value={dForm.quantity} onChange={e => setDF('quantity', e.target.value)} /></Field>
+            <Field label="Notes"><textarea className={inputCls} rows={2} placeholder="e.g. 1st batch, truck no..." value={dForm.notes} onChange={e => setDF('notes', e.target.value)} /></Field>
+            <SaveBtn onClick={saveDispatch} label="Save Dispatch" />
+          </Modal>
+        );
+      })()}
 
       {viewingConsolidated && (() => {
         const { order: co, dispatches: cd, payments: cp, product: cprod } = viewingConsolidated;
