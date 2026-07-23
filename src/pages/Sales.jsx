@@ -396,7 +396,11 @@ function SalesDocModal({ type, initial, isEditing, products, productCategories, 
         const updated = { ...i, [k]: v };
         if (k === 'productId' && v) {
           const prod = products.find(p => p.id === v);
-          if (prod) { updated.description = prod.name; updated.unit = prod.unit || 'pieces'; }
+          if (prod) {
+            updated.description = prod.name;
+            updated.unit = prod.unit || 'pieces';
+            updated.hsnCode = prod.hsnCode || '6810';
+          }
         }
         return updated;
       })
@@ -743,12 +747,14 @@ function buildPDF(docData, type, ci) {
     columnStyles: {
       0: { cellWidth: 8,  halign: 'center' },
       2: { cellWidth: 16, halign: 'center' },
-      3: { cellWidth: 14, halign: 'center' },
-      4: { cellWidth: 12, halign: 'right'  },
-      5: { cellWidth: 25, halign: 'right'  },
-      6: { cellWidth: 27, halign: 'right'  },
+      3: { cellWidth: 18, halign: 'center' },
+      4: { cellWidth: 16, halign: 'right'  },
+      5: { cellWidth: 26, halign: 'right'  },
+      6: { cellWidth: 28, halign: 'right'  },
     },
-    styles: { overflow: 'linebreak' },
+    styles: { overflow: 'ellipsize', lineColor: [200, 200, 200], lineWidth: 0.3 },
+    tableLineColor: [200, 200, 200],
+    tableLineWidth: 0.3,
     showFoot: 'never',
   });
   y = pdf.lastAutoTable.finalY + 7;

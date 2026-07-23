@@ -334,6 +334,7 @@ function ProductModal({ initialValues, onClose, onSave }) {
     name: initialValues?.name || '',
     categoryId: initialValues?.categoryId || '',
     unit: initialValues?.unit || 'pieces',
+    hsnCode: initialValues?.hsnCode || '6810',
     weightKg: initialValues?.weightKg || '',
     labourCostPerUnit: initialValues?.labourCostPerUnit || '',
     bom: initialValues?.bom || [],
@@ -385,6 +386,9 @@ function ProductModal({ initialValues, onClose, onSave }) {
           </select>
         </Field>
       </div>
+      <Field label="HSN Code">
+        <input type="text" className={inputCls} placeholder="e.g. 6810" value={form.hsnCode} onChange={e => sf('hsnCode', e.target.value)} />
+      </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Weight / unit (kg)">
           <input type="number" className={inputCls} placeholder="e.g. 10.5" min="0" step="0.01"
