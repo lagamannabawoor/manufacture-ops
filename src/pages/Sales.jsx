@@ -386,7 +386,7 @@ function SalesDocModal({ type, initial, isEditing, products, productCategories, 
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
-  function addItem() { setForm(f => ({ ...f, items: [...f.items, freshItem()] })); }
+  function addItem() { setForm(f => ({ ...f, items: [freshItem(), ...f.items] })); }
   function removeItem(key) { setForm(f => ({ ...f, items: f.items.filter(i => i._key !== key) })); }
   function updateItem(key, k, v) {
     setForm(f => ({
@@ -494,7 +494,7 @@ function SalesDocModal({ type, initial, isEditing, products, productCategories, 
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Items</p>
             <button onClick={addItem} className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg">
-              <Plus size={14} /> Add Row
+              <Plus size={14} /> Add Item
             </button>
           </div>
           <div className="space-y-3">
@@ -902,6 +902,7 @@ function buildPDF(docData, type, ci, bankAccounts) {
 
 // ── View / Print document ─────────────────────────────────────────────────────
 function DocViewer({ doc, type, products, companyInfo, onClose, onConvert, onEdit }) {
+  const app = useApp();
   const ci = companyInfo || {};
   const coName    = ci.name    || 'UrbanMud Bricks and Blocks';
   const coTagline = ci.tagline || '';
